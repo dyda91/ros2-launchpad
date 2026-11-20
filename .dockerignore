@@ -1,0 +1,12 @@
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+lab/ros_ws/build
+lab/ros_ws/install
+lab/ros_ws/log
+node_modules
+run
+docs
+specs
+tests

@@ -1,0 +1,37 @@
+version: 1
+name: armazem
+frame: odom
+
+warehouse:
+  floor:
+    min: [-0.6, -0.6]
+    max: [7.4, 5.4]
+    thickness: 0.10
+  wall_height: 1.5
+  wall_thickness: 0.08
+
+spawn:
+  x: 0.0
+  y: 0.0
+  z: 0.15
+  yaw: 0.0
+
+zone:
+  id: coleta
+  center: [5.8, 3.2]
+  size: [1.4, 1.4]
+
+obstacles:
+  - id: caixa_a
+    type: box
+    center: [2.4, 0.9]
+    size: [0.8, 0.8, 1.2]
+  - id: coluna_b
+    type: cylinder
+    center: [4.2, 2.8]
+    radius: 0.45
+    height: 1.2
+  - id: caixa_c
+    type: box
+    center: [1.0, 4.2]
+    size: [1.2, 0.6, 1.0]
