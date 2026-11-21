@@ -15,7 +15,9 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
   implementada e validada.
 - **Etapa 3:** missão guiada "Primeiro Turno", quatro desafios, inserção segura
   de comandos, validação da entrega e reinício — implementada e validada.
-- **Piloto público:** publicação TLS, autenticação de visitantes e isolamento
+- **Piloto privado local:** entrada por convite, rootfs read-only, eventos de
+  missão e templates de Caddy/host — implementado e validado localmente.
+- **Piloto público:** DNS/TLS reais, rootless validado no host e isolamento
   reforçado — pendente.
 
 ## O que funciona
@@ -39,9 +41,12 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
   recarregar a página.
 - Expiração por 10 min de inatividade ou 30 min de TTL, com aviso 2 min antes
   e liberação automática da vaga.
+- Piloto privado com convite de uso único, sem cadastro; pausa, retomada e
+  encerramento por CLI.
 
-O acesso é apenas local, em loopback. Não há cadastro, publicação, TLS, LiDAR,
-SLAM, Nav2 ou visor 3D nesta entrega. A publicação pública continua pendente.
+O acesso local é em loopback. O piloto privado usa convite e pode ser exposto
+por um Caddy no host; a validação pública com DNS/TLS reais continua pendente.
+Não há cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
 
 ## Pré-requisitos no WSL
 
@@ -127,6 +132,28 @@ O progresso fica guardado na API por sessão: recarregar a página restaura o
 painel; **Reiniciar missão** zera o progresso e recria o container. A sessão
 expira após 10 min sem atividade ou 30 min no total.
 
+## Piloto privado
+
+O piloto exige um convite. O código é entregue por canal privado, entra em
+`/api/pilot/redeem` e vira um cookie de acesso; ele não aparece na URL nem nos
+logs. O convite é consumido na primeira sessão.
+
+```bash
+make test-pilot          # convite, controle, rate limit e eventos
+make pilot-up            # com as variáveis do host carregadas
+make pilot-admin ARGS="invite --label guest-1 --ttl 7200"
+make pilot-verify        # host, DNS, TLS e health
+make pilot-acceptance    # aceite local com prazos curtos
+make pilot-e2e PILOT_INVITE_CODE=...  # Playwright da entrada
+```
+
+O host recomendado é uma VM Ubuntu Server 24.04 com Docker rootless, Caddy 2,
+DNS e 80/443. O Caddyfile, env, systemd e hardening estão em `deploy/` e
+`compose.pilot.yaml`. Consulte [`docs/pilot-runbook.md`](docs/pilot-runbook.md).
+
+A trilha de eventos do piloto registra desafio, dicas, quiz, solução e entrega,
+sem conteúdo do terminal ou comandos.
+
 ## Aceite
 
 ```bash
@@ -137,6 +164,12 @@ make measure-2b  # mede duas sessões simultâneas
 make test-mission # schema e conteúdo da missão
 make test-api    # falha do novo container e retry
 make test-session-capacity # capacidade, progresso, TTL e reconciliação
+make test-pilot  # convites, controle, rate limit e eventos
+make pilot-up    # API/runtime com convite e hardening
+make pilot-down  # encerra o piloto e remove as sessões
+make pilot-admin # CLI de convites/controle
+make pilot-verify # pré-requisitos e HTTPS do host
+make pilot-acceptance # aceite local do piloto
 make e2e         # Playwright completo: 2A + Primeiro Turno
 make stage3      # Etapa 1 + conteúdo/API + aplicação + Playwright
 ```
@@ -161,8 +194,9 @@ Etapa 1: startup **6,25–6,28 s** na rodada final, parada **0,400 s**,
 **7,26 s**, Playwright 2A **1 passed em ~48 s**, sessão ociosa **73,81%** de um
 núcleo e **269,9 MiB**. Etapa 2B: duas sessões prontas em **7,90 s** e
 **6,85 s**; ~**270 MiB** e **63–65%** de um núcleo cada; Playwright 2B
-**2 passed em 1,2 min**. Etapa 3: `make e2e` **3 passed em 2,3 min**; entrega
-validada pelo monitor real.
+**2 passed em 1,2 min**. Etapa 3: `make e2e` **3 passed em 2,2–2,3 min**; entrega
+validada pelo monitor real. Piloto privado local: `make test-pilot` **5/5**,
+`make pilot-acceptance` **OK** e `make pilot-e2e` **2 passed**.
 
 Detalhes:
 
@@ -170,6 +204,8 @@ Detalhes:
 - [`docs/stage2a-results.md`](docs/stage2a-results.md)
 - [`docs/stage2b-results.md`](docs/stage2b-results.md)
 - [`docs/stage3-results.md`](docs/stage3-results.md)
+- [`docs/pilot-runbook.md`](docs/pilot-runbook.md)
+- [`docs/pilot-results.md`](docs/pilot-results.md)
 
 ## Arquitetura
 
@@ -182,6 +218,7 @@ Navegador do Windows
     - serve o build React/Vite
     - cookie HttpOnly e progresso por sessão
     - GET /api/mission, POST /api/session/restart, touch e progress
+    - convite do piloto, pausa/close e eventos JSONL sem terminal
     - proxy de terminal (com resume) e telemetria (com lifecycle)
         ├── HTTP interno + token ──► apps/runtime (Docker socket)
         │                              └── cria/recria/remove a sessão
@@ -280,9 +317,12 @@ apps/api/                                   FastAPI e proxy UDS
 apps/runtime/                               controlador do Docker
 apps/web/                                   React + TypeScript + Vite
 apps/web/src/components/MissionPanel.tsx    painel dos quatro desafios
+compose.pilot.yaml                          convite, estado e hardening
 specs/001-primeiro-turno/                   spec, plan e tasks
 tests/integration/                          aceite real
 tests/e2e/                                  Playwright
+deploy/                                     Caddy, env e systemd do piloto
+scripts/                                    admin, preflight e verify do piloto
 docs/                                       resultados medidos
 ```
 
@@ -383,7 +423,9 @@ powershell.exe -NoProfile -Command \
 - Duas sessões simultâneas; o terceiro navegador recebe “Laboratório cheio”.
 - A reconexão de terminal/telemetria e a expiração por inatividade/TTL fazem
   parte da 2B local.
-- Sem publicação pública, TLS, cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
+- Sem publicação pública, TLS real, cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
+- O piloto privado tem convite e templates de host; o aceite em domínio público
+  depende de DNS, TLS e rootless reais.
 - O progresso da missão sobrevive a recarregar, mas reinicia no reinício da
   missão e ao reiniciar API/runtime.
 - A solução completa é opcional e calibrada para a pose após o desafio 3.

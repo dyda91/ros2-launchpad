@@ -18,6 +18,13 @@ class Settings:
     session_idle_seconds: int
     session_warning_seconds: int
     monitor_interval_seconds: float
+    pilot_enabled: bool
+    pilot_state_dir: str
+    pilot_invite_ttl_seconds: int
+    pilot_access_ttl_seconds: int
+    pilot_trust_forwarded: bool
+    pilot_rate_limit: int
+    pilot_rate_window_seconds: int
 
     @classmethod
     def from_env(cls):
@@ -57,5 +64,26 @@ class Settings:
             ),
             monitor_interval_seconds=float(
                 os.environ.get("SESSION_MONITOR_SECONDS", "2")
+            ),
+            pilot_enabled=os.environ.get("PILOT_ENABLED", "false").lower()
+            in {"1", "true", "yes"},
+            pilot_state_dir=os.environ.get(
+                "PILOT_STATE_DIR", "/var/lib/launchpad/pilot"
+            ),
+            pilot_invite_ttl_seconds=int(
+                os.environ.get("PILOT_INVITE_TTL_SECONDS", "7200")
+            ),
+            pilot_access_ttl_seconds=int(
+                os.environ.get("PILOT_ACCESS_TTL_SECONDS", "7200")
+            ),
+            pilot_trust_forwarded=os.environ.get(
+                "PILOT_TRUST_FORWARDED", "false"
+            ).lower()
+            in {"1", "true", "yes"},
+            pilot_rate_limit=int(
+                os.environ.get("PILOT_RATE_LIMIT", "6")
+            ),
+            pilot_rate_window_seconds=int(
+                os.environ.get("PILOT_RATE_WINDOW_SECONDS", "900")
             ),
         )

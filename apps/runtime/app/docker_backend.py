@@ -3,6 +3,7 @@ import shutil
 import threading
 
 import docker
+from docker.types import Ulimit
 
 
 class CapacityError(RuntimeError):
@@ -122,6 +123,43 @@ class DockerBackend:
                 "launchpad.session": session_id,
                 "launchpad.managed": "true",
             }
+            tmpfs = None
+            if self.settings.session_read_only:
+                size = self.settings.session_tmpfs_size
+                tmpfs = {
+                    "/tmp": (
+                        f"rw,noexec,nosuid,nodev,size={size},mode=1777"
+                    ),
+                    "/home/ubuntu": (
+                        f"rw,nosuid,nodev,size={size},"
+                        "uid=1000,gid=1000,mode=0700"
+                    ),
+                    "/var/tmp": (
+                        f"rw,noexec,nosuid,nodev,size={size},mode=1777"
+                    ),
+                }
+            ulimits = [
+                Ulimit(
+                    name="nofile",
+                    soft=self.settings.session_ulimit_nofile,
+                    hard=self.settings.session_ulimit_nofile,
+                ),
+                Ulimit(
+                    name="core",
+                    soft=self.settings.session_ulimit_core_mb * 1024 * 1024,
+                    hard=self.settings.session_ulimit_core_mb * 1024 * 1024,
+                ),
+                Ulimit(
+                    name="fsize",
+                    soft=self.settings.session_ulimit_fsize_mb * 1024 * 1024,
+                    hard=self.settings.session_ulimit_fsize_mb * 1024 * 1024,
+                ),
+            ]
+            security_opt = ["no-new-privileges:true"]
+            if self.settings.session_apparmor:
+                security_opt.append(
+                    f"apparmor={self.settings.session_apparmor}"
+                )
             command = [
                 "bash",
                 "-lc",
@@ -147,8 +185,11 @@ class DockerBackend:
                     nano_cpus=2_000_000_000,
                     pids_limit=256,
                     shm_size="512m",
+                    read_only=self.settings.session_read_only,
+                    tmpfs=tmpfs,
+                    ulimits=ulimits,
                     cap_drop=["ALL"],
-                    security_opt=["no-new-privileges:true"],
+                    security_opt=security_opt,
                     labels=labels,
                     remove=False,
                 )

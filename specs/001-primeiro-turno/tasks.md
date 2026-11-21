@@ -111,6 +111,31 @@ reinício                             mesma tag, passo 1, pose x≈0
 encerramento                         dois containers e UDS removidos
 ```
 
+## Fase 4 — Piloto privado (local concluído)
+
+| ID | Status | Tarefa | Verificação executada |
+|---|---|---|---|
+| T4.1 | concluído | Entrada por convite sem cadastro, código aleatório e hash | `test_pilot_store.py`; Playwright piloto |
+| T4.2 | concluído | Cookie de acesso, consumo único, `full` sem consumir convite | `stage_pilot_acceptance.sh` |
+| T4.3 | concluído | Pausa, retomada e fechamento por CLI | aceite local; sessões ativas preservadas |
+| T4.4 | concluído | Caddy/HTTPS, Compose, env e systemd de referência | `caddy validate`; arquivos revisados |
+| T4.5 | concluído | Rootfs read-only, tmpfs, ulimits e AppArmor configurável | sessão real `ready`; `docker inspect` |
+| T4.6 | concluído | Eventos de missão sem conteúdo do terminal | aceite com `events`; sem termo terminal |
+| T4.7 | pendente | Validação em host Ubuntu 24.04 com rootless, DNS e TLS | depende do host/domínio |
+| T4.8 | pendente | WebSocket `wss://` pelo Caddy real e comparação CPU/RAM | depende do host/domínio |
+
+### Evidências do piloto local
+
+```text
+make test-pilot                     5/5 OK
+make pilot-acceptance               OK
+make pilot-e2e                      2 passed
+sessão read-only                    ready; Gazebo + /odom
+docker inspect                      readonly, network none, cap_drop, sem Docker
+caddy validate                      Valid configuration
+eventos                             invite/session/step/quiz; sem terminal
+```
+
 ## Fase 3 — Missão guiada (concluída)
 
 | ID | Status | Tarefa | Verificação executada |
@@ -144,6 +169,8 @@ layout 1600 / 1280 / 800 px          três colunas / desafio acima / empilhado
 
 ## Pendências conhecidas
 
+- A validação do piloto no host real (rootless, DNS/TLS, Caddy, wss e
+  comparação CPU/RAM) permanece pendente.
 - A publicação pública com TLS, autenticação de visitantes e isolamento
   reforçado (rootless/VM, seccomp, AppArmor e auditoria) permanece pendente.
 - O progresso da missão é por sessão e reinicia no reinício da missão; ele

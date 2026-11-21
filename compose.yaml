@@ -47,8 +47,14 @@ services:
       RUN_DIR: /run/sessions
       MAX_SESSIONS: "${MAX_SESSIONS:-2}"
       SESSION_ROS_DOMAIN_ID: "${SESSION_ROS_DOMAIN_ID:-42}"
+      SESSION_READ_ONLY: "${SESSION_READ_ONLY:-false}"
+      SESSION_TMPFS_SIZE: "${SESSION_TMPFS_SIZE:-256m}"
+      SESSION_APPARMOR: "${SESSION_APPARMOR:-}"
+      SESSION_ULIMIT_NOFILE: "${SESSION_ULIMIT_NOFILE:-4096}"
+      SESSION_ULIMIT_CORE_MB: "${SESSION_ULIMIT_CORE_MB:-0}"
+      SESSION_ULIMIT_FSIZE_MB: "${SESSION_ULIMIT_FSIZE_MB:-64}"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
       - ./run/sessions:/run/sessions
     networks:
       - control
@@ -75,7 +81,7 @@ services:
       RUNTIME_URL: http://runtime:8100
       RUNTIME_TOKEN: "${RUNTIME_TOKEN:-dev-local-runtime-token}"
       PUBLIC_ORIGINS: "${PUBLIC_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}"
-      COOKIE_SECURE: "false"
+      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
       MAX_SESSIONS: "${MAX_SESSIONS:-2}"
       RUN_DIR: /run/sessions
       STATIC_DIR: /app/static

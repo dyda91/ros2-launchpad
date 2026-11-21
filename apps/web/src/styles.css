@@ -765,3 +765,68 @@ code {
   text-align: center;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
+
+.pilot-gate .pilot-form {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1.1rem;
+}
+
+.pilot-form label {
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.pilot-form input {
+  width: 100%;
+  min-height: 2.7rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  border-radius: 0.55rem;
+  outline: none;
+  background: rgba(8, 13, 18, 0.88);
+  color: #f1f5f9;
+  font-family: "JetBrains Mono", "Cascadia Code", monospace;
+  font-size: 0.95rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.pilot-form input:focus {
+  border-color: rgba(110, 231, 183, 0.7);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.12);
+}
+
+.pilot-error {
+  margin: 0.8rem 0 0;
+  color: #fca5a5 !important;
+  font-size: 0.8rem;
+}
+
+.status-invite_required::before,
+.status-pilot_paused::before {
+  background: #fbbf24;
+}
+
+.status-pilot_closed::before {
+  background: #94a3b8;
+}
+
+.pilot-notice {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  z-index: 25;
+  max-width: min(34rem, calc(100vw - 2rem));
+  transform: translateX(-50%);
+  padding: 0.65rem 1rem;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 0.75rem;
+  background: rgba(41, 30, 8, 0.96);
+  color: #fde68a;
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}

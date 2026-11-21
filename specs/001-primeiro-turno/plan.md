@@ -6,6 +6,7 @@
 - **Etapa 2A:** implementada.
 - **Etapa 2B local:** implementada; publicação pública pendente.
 - **Etapa 3:** implementada.
+- **Piloto privado local:** implementado; validação em host/domínio pendente.
 
 ## Estrutura do monorepo
 
@@ -14,6 +15,15 @@ ros2-launchpad/
 ├── AGENTS.md
 ├── README.md
 ├── compose.yaml
+├── compose.pilot.yaml
+├── deploy/
+│   ├── Caddyfile
+│   ├── pilot.env.example
+│   └── systemd/
+├── scripts/
+│   ├── pilot-admin.sh
+│   ├── pilot-preflight.sh
+│   └── pilot-verify.sh
 ├── .env.example
 ├── Makefile
 ├── content/
@@ -52,7 +62,9 @@ ros2-launchpad/
 ├── docs/stage1-results.md
 ├── docs/stage2a-results.md
 ├── docs/stage2b-results.md
-└── docs/stage3-results.md
+├── docs/stage3-results.md
+├── docs/pilot-runbook.md
+└── docs/pilot-results.md
 ```
 
 A Etapa 2A adicionou `apps/api`, `apps/runtime`, `apps/web`,
@@ -359,6 +371,56 @@ GET    /v1/sessions
 - `make e2e` continua 3 passed em 2,3 min; `make stage1` OK em 6,79 s.
 - `make test-session-capacity` 8/8 e `test_session_restart_failure` 2/2.
 
+## Piloto privado implementado localmente
+
+### Arquitetura
+
+```text
+Navegador ── HTTPS ──► Caddy (host)
+                         │ 127.0.0.1:8080
+                         ▼
+                     API (convite/controle)
+                         │ UDS + HTTP interno
+                         ▼
+                     runtime ── Docker rootless
+                         │
+                         ▼
+                     sessão (network none)
+```
+
+- O convite é resgatado por formulário e vira cookie opaco; o código não
+  aparece na URL nem nos logs.
+- O estado fica em `run/pilot` (produção `/var/lib/launchpad/pilot`) com
+  permissões restritas.
+- `compose.pilot.yaml` ativa convite, `run/pilot`, `COOKIE_SECURE` e
+  `SESSION_READ_ONLY`; o Caddy é do host.
+- O runtime aceita `read_only`, tmpfs limitados, `ulimits` e AppArmor
+  configurável via `SESSION_*`.
+- Eventos JSONL são derivados do progresso; não incluem terminal.
+
+### Contratos
+
+```text
+GET  /api/pilot/status
+POST /api/pilot/redeem
+GET  /api/session  inclui pilot_state
+POST /api/session  exige convite se não houver sessão
+```
+
+```text
+pilot-admin invite/list/revoke/pause/resume/close/events
+make pilot-up|pilot-down|pilot-admin|pilot-verify|pilot-acceptance
+```
+
+### Resultados locais
+
+- `make test-pilot`: 5/5.
+- `make pilot-acceptance`: OK.
+- `make pilot-e2e`: 2 passed.
+- Sessão read-only: Gazebo e `/odom` prontos; container sem rede/capabilities.
+- Caddyfile validado.
+- Host público: pendente de DNS, TLS e rootless reais.
+
 ## Etapa 3 — Primeiro Turno implementada
 
 ### Fluxo
@@ -457,6 +519,9 @@ restaurados.
 - `tests/e2e/stage2b.spec.ts`: dois contextos, terceiro `full`, reload,
   reconexão de terminal e expiração.
 - `stage2b_measure.sh`: tempo de prontidão, containers, memória e CPU.
+- `test_pilot_store.py`: convite, hash, consumo, controle, rate limit e eventos.
+- `stage_pilot_acceptance.sh`: fluxo HTTP local do piloto.
+- `tests/e2e/pilot.spec.ts`: entrada por convite e sessão válida.
 - O aceite usa o simulador real, não telemetria simulada.
 
 ## Pendências de publicação
@@ -467,6 +532,9 @@ restaurados.
   AppArmor e auditoria.
 
 ## Riscos e decisões pendentes
+
+- O piloto privado ainda depende de um host Ubuntu 24.04 com rootless, Caddy e
+  DNS. A validação local não substitui o aceite no host.
 
 - A memória do WSL é 7,7 GiB; duas sessões foram medidas em ~270 MiB cada.
   Elevar o limite exige nova medição e autorização para alterar `.wslconfig`.

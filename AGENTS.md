@@ -2,11 +2,12 @@
 
 ## Estado atual
 
-O repositório implementa as **Etapas 1, 2A, 2B local e 3** do ROS 2 Launchpad.
-Duas sessões anônimas simultâneas ficam em `http://localhost:8080`, cada uma
-com container, ROS graph, terminal Linux real, Canvas 2D e progresso próprios.
-A publicação pública com TLS e a validação reforçada de isolamento continuam
-pendentes antes de um piloto.
+O repositório implementa as **Etapas 1, 2A, 2B local, 3 e o piloto privado
+local** do ROS 2 Launchpad. Duas sessões anônimas simultâneas ficam em
+`http://localhost:8080`, cada uma com container, ROS graph, terminal Linux
+real, Canvas 2D e progresso próprios. No piloto, a entrada é por convite; o
+host Ubuntu 24.04 com rootless, DNS/TLS e validação reforçada continua
+pendente antes de publicar.
 
 ## Estrutura
 
@@ -17,6 +18,10 @@ docs/stage1-results.md                      evidências da Etapa 1
 docs/stage2a-results.md                     evidências da Etapa 2A
 docs/stage2b-results.md                     evidências da Etapa 2B local
 docs/stage3-results.md                      evidências da Etapa 3
+docs/pilot-runbook.md                       operação do piloto privado
+docs/pilot-results.md                       evidências locais do piloto
+deploy/                                     Caddyfile, env e systemd
+scripts/                                    admin, preflight e verify do piloto
 lab/ros_ws/src/launchpad_sim/               robô, mundo, watchdog e monitor
 lab/ros_ws/src/launchpad_bringup/           launch headless
 lab/image/Dockerfile                        imagem do laboratório
@@ -28,6 +33,7 @@ specs/001-primeiro-turno/                   spec, plan e tasks
 tests/integration/                          aceite real das Etapas 1, 2A e 2B
 tests/e2e/                                  Playwright 2A, 2B e missão
 compose.yaml                                lab, api e runtime
+compose.pilot.yaml                          convite, estado e hardening
 Makefile                                    comandos reproduzíveis
 ```
 
@@ -70,6 +76,13 @@ make e2e                   # Playwright completo (2A + missão)
 make test-mission          # schema e conteúdo da missão
 make test-api              # restart com falha e retry
 make test-session-capacity # capacidade, progresso, TTL e reconciliação
+make test-pilot            # convite, controle, rate limit e eventos
+make pilot-up              # API/runtime com convite e hardening
+make pilot-down            # encerra o piloto e remove as sessões
+make pilot-admin           # CLI de convites/controle (ARGS=...)
+make pilot-verify          # pré-requisitos e HTTPS do host
+make pilot-acceptance      # aceite local de convite/pausa/fechamento
+make pilot-e2e             # Playwright da tela de convite
 make test-world            # geometria e geração do mundo
 make lab-up                # container manual da Etapa 1
 make lab-shell             # shell no laboratório manual
@@ -112,6 +125,8 @@ make stage1
 make stage2a
 make stage2b
 make e2e
+make test-pilot
+make pilot-acceptance
 ```
 
 O aceite exige dados reais do simulador e do ROS 2, não mocks. Atualize
@@ -137,8 +152,16 @@ o que passou e o que permanece pendente.
   descarta telemetria por geração, zera o progresso e trata falha com nova
   tentativa.
 - O progresso da missão é validado e guardado na API por sessão.
+- No piloto, `PILOT_ENABLED` exige convite para novas sessões; convites são
+  hashes, consumidos uma vez, e o estado fica em `run/pilot` com modo 0700.
+- `PILOT_STATE_DIR` é montado na API; `PILOT_TRUST_FORWARDED` só pode ser
+  habilitado atrás do Caddy local.
+- Eventos do piloto são JSONL derivados do progresso e não incluem conteúdo do
+  terminal, comandos, códigos de convite ou IP em claro.
 - TTL 1800 s, inatividade 600 s, aviso 120 s e monitor 2 s são configuráveis;
   criar, interagir e tocar contam como atividade; telemetria não conta.
+- O piloto pode rodar com `SESSION_READ_ONLY=true`, tmpfs, ulimits e
+  `SESSION_APPARMOR`; o host deve ser rootless.
 - Cookie `HttpOnly`, `SameSite=Lax`; validação de `Origin`; token do agente
   não é exposto ao shell.
 - `HOST_RUN_DIR` é passado pelo Makefile para o runtime e deve ser um caminho
@@ -146,6 +169,8 @@ o que passou e o que permanece pendente.
 - O perfil local não é um piloto público. Para shells anônimos, Docker
   sozinho não é uma fronteira forte; rootless/VM/seccomp/AppArmor e auditoria
   continuam requisitos antes da publicação.
+- O piloto privado espera host Ubuntu 24.04 com Docker rootless, Caddy 2,
+  DNS e 80/443; `make pilot-verify` e o runbook descrevem o aceite.
 
 ## Limitações atuais
 
@@ -154,7 +179,9 @@ o que passou e o que permanece pendente.
   automática fazem parte da 2B local.
 - Se o navegador fechar sem clicar em “Encerrar sessão”, a vaga é liberada
   por inatividade/TTL; `make session-down`/`make down` continuam disponíveis.
-- Sem publicação pública, TLS, cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
+- Sem publicação pública, TLS real, cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
+- O piloto privado tem entrada por convite e templates de Caddy/host; a
+  validação em domínio público continua pendente.
 - O progresso da missão sobrevive a recarregar a página, mas reinicia no
   reinício da missão e ao reiniciar API/runtime.
 - A solução completa da missão é opcional e calibrada para a pose após o

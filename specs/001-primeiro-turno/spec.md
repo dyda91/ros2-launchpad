@@ -7,8 +7,10 @@
 - **Etapa 2B local** (duas sessões simultâneas, reconexão, progresso
   persistente, TTL e inatividade): implementada e validada em 2026-11-21.
 - **Etapa 3:** implementada e validada em 2026-11-21.
-- **Piloto público** (publicação TLS, autenticação de visitantes e validação
-  reforçada de isolamento): pendente.
+- **Piloto privado local** (convite, Caddy/TLS template, rootfs read-only e
+  eventos de missão): implementado em 2026-11-21.
+- **Piloto público** (DNS/TLS reais, rootless validado, teste no host,
+  autenticação de convidados e isolamento reforçado): pendente.
 
 ## Produto
 
@@ -64,6 +66,10 @@ LiDAR, SLAM, Nav2, visor 3D, publicação, GPU, WSLg, X11, RViz e GUI do Gazebo.
   este último acessa o socket do Docker.
 - **R12** A interface e os textos são em pt-BR; textos, dicas e parâmetros
   ficam em `content/`.
+- **R13** O piloto privado exige convite sem cadastro; o convite é único e
+  não aparece em URL ou logs.
+- **R14** O piloto coleta eventos de desafio, dicas e entrega sem armazenar
+  o conteúdo digitado ou exibido no terminal.
 
 ## Referenciais e unidades
 
@@ -193,6 +199,42 @@ A Etapa 2B local foi aprovada em 2026-11-21. Integração OK; Playwright 2B
 **2 passed em 1,2 min**; duas sessões prontas em **7,90 s** e **6,85 s**;
 consumo ocioso de **~270 MiB** e **63–65%** de um núcleo por sessão. Consulte
 `docs/stage2b-results.md`.
+
+## Piloto privado — implementado localmente
+
+### Entregue
+
+- Entrada por convite no formulário; sem nome, e-mail ou senha.
+- Código aleatório de 128 bits; somente hash no estado; cookie de acesso
+  opaco, `HttpOnly`, `Secure` no host e `SameSite=Lax`.
+- Convite único consumido na criação da sessão; recarregar usa o cookie de
+  sessão; terceira sessão recebe `full` sem consumir o convite.
+- Rotas de status, resgate e estado; bloqueio de entrada quando o piloto está
+  pausado ou fechado.
+- CLI de administração por SSH: convite, lista, revogação, pausa, retomada,
+  fechamento e eventos.
+- Caddy de referência para HTTPS automático, WebSocket, HSTS, logs sem corpo e
+  sem cookies, e `stream_close_delay`.
+- Hardening opcional da sessão: rootfs `read_only`, tmpfs limitados, `ulimits`
+  de arquivos/core e AppArmor configurável.
+- Eventos JSONL derivados do progresso, sem conteúdo do terminal.
+- Templates de host: `deploy/Caddyfile`, `compose.pilot.yaml`,
+  `deploy/pilot.env.example`, systemd e scripts de operação.
+
+### Critérios locais executados
+
+- `make test-pilot` cobre convite, hash, consumo, revogação, pausa e eventos.
+- `make pilot-acceptance` cobre sem convite, convite inválido, duas sessões,
+  terceira `full`, progresso, pausa, retomada, fechamento e limpeza.
+- `make pilot-e2e` cobre a tela de convite, erro de código e sessão válida.
+- Sessão com rootfs read-only sobe o Gazebo, publica `/odom` e fica `ready`.
+- Caddyfile validado com `caddy validate`.
+
+### Pendências do host
+
+DNS/HTTPS reais, rootless e AppArmor no host escolhido, WebSocket `wss://` pelo
+Caddy real, comparação formal de CPU/RAM e testes de falha no host só podem ser
+executados quando o host e o domínio estiverem disponíveis.
 
 ## Etapa 3 — missão guiada Primeiro Turno
 

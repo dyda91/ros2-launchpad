@@ -43,6 +43,36 @@ export async function restartSession(): Promise<SessionStatus> {
   return parseResponse<SessionStatus>(response);
 }
 
+export interface RedeemResult {
+  ok: boolean;
+  status: number;
+  message: string;
+}
+
+export async function redeemInvite(code: string): Promise<RedeemResult> {
+  const response = await fetch("/api/pilot/redeem", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code })
+  });
+  if (response.status === 204) {
+    return { ok: true, status: 204, message: "" };
+  }
+  let message = "convite inválido ou expirado";
+  try {
+    const payload = (await response.json()) as { detail?: string };
+    if (response.status === 429) {
+      message = "tentativas demais; aguarde alguns minutos";
+    } else if (payload.detail === "pilot not accepting") {
+      message = "o piloto não está aceitando novas entradas";
+    }
+  } catch {
+    return { ok: false, status: response.status, message };
+  }
+  return { ok: false, status: response.status, message };
+}
+
 export async function touchSession(): Promise<void> {
   await fetch("/api/session/touch", {
     method: "POST",

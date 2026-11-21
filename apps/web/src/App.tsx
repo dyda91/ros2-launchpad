@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import MissionPanel from "./components/MissionPanel";
+import PilotGate from "./components/PilotGate";
 import Terminal, { type TerminalHandle } from "./components/Terminal";
 import WarehouseCanvas from "./components/WarehouseCanvas";
 import {
@@ -62,6 +63,12 @@ function statusLabel(state: SessionStatus["state"]) {
       return "Falha";
     case "expired":
       return "Sessão expirada";
+    case "invite_required":
+      return "Convite necessário";
+    case "pilot_paused":
+      return "Piloto pausado";
+    case "pilot_closed":
+      return "Piloto encerrado";
     default:
       return "Pronto para começar";
   }
@@ -214,6 +221,10 @@ export default function App() {
           state === "error"
             ? previous.error ?? "a sessão não está mais disponível"
             : previous.error,
+        pilot_state:
+          typeof message.pilot_state === "string"
+            ? (message.pilot_state as SessionStatus["pilot_state"])
+            : previous.pilot_state,
         lifecycle: {
           idle_expires_in: Number(message.idle_expires_in ?? 0),
           hard_expires_in: Number(message.hard_expires_in ?? 0),
@@ -293,6 +304,22 @@ export default function App() {
     },
     []
   );
+
+  async function handleRedeem() {
+    setBusy(true);
+    setNotice("");
+    try {
+      const status = await getSession();
+      setSession(status);
+      if (status.state === "invite_required") {
+        setNotice("o convite não foi reconhecido; tente novamente");
+      }
+    } catch {
+      setNotice("não foi possível abrir a sessão após o convite");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function handleTerminalState(state: TerminalState) {
     setTerminalState(state);
@@ -383,16 +410,21 @@ export default function App() {
   async function handleEnd() {
     generationRef.current += 1;
     setBusy(true);
+    setMap(null);
+    setPose(null);
+    setMissionStatus(null);
+    setTerminalState(null);
+    setInsertNotice("");
     try {
       await endSession();
-    } finally {
+      try {
+        setSession(await getSession());
+      } catch {
+        setSession({ state: "idle" });
+      }
+    } catch {
       setSession({ state: "idle" });
-      setMap(null);
-      setPose(null);
-      setMissionStatus(null);
-      setTerminalState(null);
-      setInsertNotice("");
-      setNotice("");
+    } finally {
       setBusy(false);
     }
   }
@@ -427,6 +459,44 @@ export default function App() {
           ) : null}
         </div>
       </header>
+
+      {session.state === "invite_required" ? (
+        <PilotGate onRedeemed={handleRedeem} />
+      ) : null}
+
+      {session.state === "pilot_paused" ? (
+        <main className="landing">
+          <div className="landing-card">
+            <p className="eyebrow">Piloto privado</p>
+            <h2>Novas entradas estão pausadas</h2>
+            <p>
+              O laboratório está temporariamente fechado para novos
+              convidados. As sessões já iniciadas continuam até o limite de
+              tempo ou inatividade.
+            </p>
+            <button
+              className="button button-secondary"
+              onClick={handleRefresh}
+              disabled={busy}
+            >
+              Verificar novamente
+            </button>
+          </div>
+        </main>
+      ) : null}
+
+      {session.state === "pilot_closed" ? (
+        <main className="landing">
+          <div className="landing-card">
+            <p className="eyebrow">Piloto privado</p>
+            <h2>O piloto foi encerrado</h2>
+            <p>
+              O laboratório não está aceitando novas sessões. Obrigado por
+              participar.
+            </p>
+          </div>
+        </main>
+      ) : null}
 
       {session.state === "idle" ? (
         <main className="landing">
@@ -568,6 +638,14 @@ export default function App() {
             </aside>
           )}
 
+          {session.pilot_state === "paused" ||
+          session.pilot_state === "closed" ? (
+            <div className="pilot-notice" data-testid="pilot-notice">
+              {session.pilot_state === "paused"
+                ? "O piloto pausou novas entradas; sua sessão atual continua."
+                : "O piloto foi encerrado; esta sessão será encerrada em breve."}
+            </div>
+          ) : null}
           {session.lifecycle?.warning ? (
             <div className="lifecycle-warning" data-testid="lifecycle-warning">
               {session.lifecycle.idle_expires_in <=

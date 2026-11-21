@@ -1,0 +1,22 @@
+services:
+  runtime:
+    environment:
+      SESSION_READ_ONLY: "${SESSION_READ_ONLY:-true}"
+      SESSION_APPARMOR: "${SESSION_APPARMOR:-}"
+    restart: unless-stopped
+
+  api:
+    environment:
+      PILOT_ENABLED: "true"
+      PILOT_STATE_DIR: /var/lib/launchpad/pilot
+      PILOT_TRUST_FORWARDED: "${PILOT_TRUST_FORWARDED:-true}"
+      PILOT_INVITE_TTL_SECONDS: "${PILOT_INVITE_TTL_SECONDS:-7200}"
+      PILOT_ACCESS_TTL_SECONDS: "${PILOT_ACCESS_TTL_SECONDS:-7200}"
+      PILOT_RATE_LIMIT: "${PILOT_RATE_LIMIT:-6}"
+      PILOT_RATE_WINDOW_SECONDS: "${PILOT_RATE_WINDOW_SECONDS:-900}"
+      COOKIE_SECURE: "${COOKIE_SECURE:-true}"
+      PUBLIC_ORIGINS: "${PUBLIC_ORIGINS:?defina PUBLIC_ORIGINS com a URL HTTPS}"
+    volumes:
+      - ./run/sessions:/run/sessions
+      - ./run/pilot:/var/lib/launchpad/pilot
+    restart: unless-stopped

@@ -11,8 +11,9 @@ preserva o xterm e retoma a saída por offset; a telemetria reconecta; TTL,
 inatividade, aviso e limpeza automática liberam vagas. O limite padrão é 2 e o
 terceiro navegador recebe `full`.
 
-A publicação pública com TLS, a validação contra escapes de shells anônimos e
-a auditoria de piloto continuam fora desta entrega local.
+A publicação em host público com TLS, a validação contra escapes de shells
+anônimos e a auditoria continuam fora desta entrega local. A entrada por convite
+e os templates de piloto estão em `docs/pilot-runbook.md`.
 
 ## Decisões implementadas
 

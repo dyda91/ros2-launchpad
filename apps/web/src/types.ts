@@ -4,7 +4,12 @@ export type SessionPhase =
   | "ready"
   | "full"
   | "error"
-  | "expired";
+  | "expired"
+  | "invite_required"
+  | "pilot_paused"
+  | "pilot_closed";
+
+export type PilotState = "disabled" | "open" | "paused" | "closed";
 
 export interface SessionLifecycle {
   idle_expires_in: number;
@@ -16,6 +21,7 @@ export interface SessionStatus {
   state: SessionPhase;
   stage?: string;
   error?: string | null;
+  pilot_state?: PilotState;
   active?: number;
   max?: number;
   session_tag?: string;

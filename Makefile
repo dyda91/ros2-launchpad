@@ -4,6 +4,7 @@ APP_PORT ?= 8080
 HOST_RUN_DIR ?= $(CURDIR)/run/sessions
 RUNTIME_TOKEN ?= dev-local-runtime-token
 E2E_IMAGE ?= ros2-launchpad-e2e:dev
+PILOT_COMPOSE ?= -f compose.yaml -f compose.pilot.yaml
 MAX_SESSIONS ?= 2
 SESSION_TTL_SECONDS ?= 1800
 SESSION_IDLE_SECONDS ?= 600
@@ -11,7 +12,7 @@ SESSION_WARNING_SECONDS ?= 120
 SESSION_MONITOR_SECONDS ?= 2
 SESSION_ROS_DOMAIN_ID ?= 42
 
-.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-mission test-api test-session-capacity stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-3 stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b clean
+.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-acceptance pilot-e2e clean
 
 help:
 	@printf '%s\n' \
@@ -33,6 +34,12 @@ help:
 		'stage2b     executa o aceite multi-sessão, reconexão e expiração' \
 		'stage3      executa o aceite da missão Primeiro Turno' \
 		'measure-2b  mede dois simuladores simultâneos' \
+		'test-pilot  testa convites, controle e eventos do piloto' \
+		'pilot-up    sobe API/runtime com convite e hardening' \
+		'pilot-down  para o piloto e remove as sessões' \
+		'pilot-admin executa o CLI de convites/controle' \
+		'pilot-verify valida pré-requisitos e HTTPS do piloto' \
+		'pilot-acceptance testa convite, pausa e fechamento localmente' \
 		'clean       remove containers e artefatos gerados'
 
 build:
@@ -150,6 +157,61 @@ measure-2b: sessions-clean
 	$(MAKE) up
 	bash tests/integration/stage2b_measure.sh
 
+pilot-up: build build-app
+	mkdir -p run/sessions run/pilot
+	chmod 0775 run/sessions run/pilot
+	HOST_RUN_DIR=$(HOST_RUN_DIR) RUNTIME_TOKEN=$(RUNTIME_TOKEN) \
+		MAX_SESSIONS=$(MAX_SESSIONS) \
+		SESSION_TTL_SECONDS=$(SESSION_TTL_SECONDS) \
+		SESSION_IDLE_SECONDS=$(SESSION_IDLE_SECONDS) \
+		SESSION_WARNING_SECONDS=$(SESSION_WARNING_SECONDS) \
+		SESSION_MONITOR_SECONDS=$(SESSION_MONITOR_SECONDS) \
+		SESSION_ROS_DOMAIN_ID=$(SESSION_ROS_DOMAIN_ID) \
+		SESSION_READ_ONLY=$(SESSION_READ_ONLY) \
+		SESSION_APPARMOR=$(SESSION_APPARMOR) \
+		PUBLIC_ORIGINS=$(PUBLIC_ORIGINS) \
+		COOKIE_SECURE=$(COOKIE_SECURE) \
+		DOCKER_SOCKET=$(DOCKER_SOCKET) \
+		$(COMPOSE) $(PILOT_COMPOSE) up -d api runtime
+	@set -e; \
+	for attempt in $$(seq 1 40); do \
+		if curl -fsS "http://127.0.0.1:$(APP_PORT)/api/health" >/dev/null 2>&1; then \
+			printf 'piloto pronto em http://localhost:%s\n' "$(APP_PORT)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	printf 'piloto não respondeu; veja docker compose logs api runtime\n' >&2; \
+	exit 1
+
+pilot-down:
+	-ids=$$(docker ps -aq --filter label=launchpad.role=session); \
+		if [ -n "$$ids" ]; then docker rm -f $$ids >/dev/null; fi
+	$(COMPOSE) down --remove-orphans
+	rm -rf run/sessions/*
+
+pilot-admin:
+	bash scripts/pilot-admin.sh $(ARGS)
+
+pilot-e2e: e2e-image
+	docker run --rm --network host --ipc host --shm-size=1g \
+		-e PILOT_INVITE_CODE="$(PILOT_INVITE_CODE)" $(E2E_IMAGE) \
+		npx playwright test pilot.spec.ts
+
+pilot-verify:
+	bash scripts/pilot-preflight.sh
+	bash scripts/pilot-verify.sh
+
+pilot-acceptance: build-app
+	$(MAKE) sessions-clean
+	PUBLIC_ORIGINS=http://127.0.0.1:8080,http://localhost:8080 \
+		COOKIE_SECURE=false SESSION_READ_ONLY=true SESSION_APPARMOR= \
+		$(MAKE) pilot-up
+	PUBLIC_ORIGINS=http://127.0.0.1:8080,http://localhost:8080 \
+		COOKIE_SECURE=false SESSION_READ_ONLY=true SESSION_APPARMOR= \
+		bash tests/integration/stage_pilot_acceptance.sh
+	$(MAKE) pilot-down
+
 stage3: stage1 test-mission test-api
 	$(COMPOSE) stop lab
 	$(MAKE) sessions-clean
@@ -183,3 +245,10 @@ test-session-capacity: build-app
 		-v "$(CURDIR)/apps/api:/app" \
 		-w /app ros2-launchpad-api:dev \
 		python /tests/integration/test_session_capacity.py -v
+
+test-pilot: build-app
+	docker run --rm \
+		-v "$(CURDIR)/tests:/tests:ro" \
+		-v "$(CURDIR)/apps/api:/app" \
+		-w /app ros2-launchpad-api:dev \
+		python /tests/integration/test_pilot_store.py -v

@@ -1,0 +1,28 @@
+{$PILOT_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Robots-Tag "noindex, nofollow"
+	}
+
+	reverse_proxy 127.0.0.1:{$PILOT_API_PORT:8080} {
+		flush_interval -1
+		stream_close_delay 5m
+	}
+
+	log {
+		output file /var/log/caddy/pilot-access.log {
+			roll_size 20MiB
+			roll_keep 7
+			roll_keep_for 168h
+		}
+		format filter {
+			request>headers>Cookie delete
+			request>headers>Authorization delete
+			resp_headers>Set-Cookie delete
+		}
+	}
+}

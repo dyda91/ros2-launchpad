@@ -1,0 +1,17 @@
+[Unit]
+Description=ROS 2 Launchpad private pilot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/srv/launchpad
+EnvironmentFile=/etc/launchpad/pilot.env
+ExecStart=/usr/bin/docker compose -f compose.yaml -f compose.pilot.yaml up -d
+ExecStop=/usr/bin/docker compose -f compose.yaml -f compose.pilot.yaml down --remove-orphans
+TimeoutStartSec=600
+TimeoutStopSec=120
+
+[Install]
+WantedBy=default.target
