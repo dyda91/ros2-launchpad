@@ -4,8 +4,9 @@
 
 - **Etapa 1:** implementada e validada em 2026-11-20.
 - **Etapa 2A:** implementada e validada em 2026-11-21.
-- **Etapa 2B** (sessões simultâneas, reconexão, expiração e publicação) e
-  **Etapa 3** continuam pendentes.
+- **Etapa 3:** implementada e validada em 2026-11-21.
+- **Etapa 2B** (sessões simultâneas, reconexão, expiração e publicação)
+  permanece pendente.
 
 ## Produto
 
@@ -151,37 +152,66 @@ núcleo** e **269,9 MiB**. Consulte `docs/stage2a-results.md`.
 
 ### Critérios de aceite planejados
 
-- Abrir a página no navegador do Windows via `localhost`, iniciar sessão e
-  executar `ros2 topic list` e um movimento no terminal; o visor reflete a
-  pose real em até 1 s.
-- Dois perfis de navegador têm robôs independentes; o comando de um visitante
-  não afeta o robô do outro.
-- Recarregar reconecta à mesma sessão; reiniciar restaura pose e progresso;
-  expirar libera a vaga; lotação é exibida.
-- Shell não-root, com limites de CPU, RAM e PIDs, sem socket do Docker, sem
-  rede externa, sem arquivos do host e sem acesso a outra sessão.
-- O perfil de desenvolvimento publica apenas em loopback.
+- Dois perfis de navegador com robôs independentes.
+- Recarregar reconecta à mesma sessão; reiniciar preserva o contrato de sessão.
+- Expirar libera a vaga; lotação é exibida.
+- TTL de 30 min e inatividade de 10 min.
+- Publicação pública com TLS e isolamento validado para shells anônimos.
 
-## Etapa 3 — missão guiada
+## Etapa 3 — missão guiada Primeiro Turno
 
-### Critérios de aceite planejados
+### Entregue
 
-- Três áreas visíveis: desafio atual, visor e terminal.
-- Quatro passos com ação, observação e dica opcional; "Inserir comando"
-  insere sem executar.
-- A última etapa oferece a solução completa em dica opcional.
-- A entrega é validada por pose dentro da zona e velocidade baixa por 2,0 s
-  contínuos, com dados reais do simulador.
-- A experiência termina com confirmação e a pergunta sobre LiDAR.
-- Teste Playwright real cobre movimento pelo navegador, dois contextos,
-  reconexão, reinício, expiração e lotação.
+- Quatro desafios com conteúdo em `content/missions/primeiro-turno.yaml` e
+  renderização genérica no frontend.
+- Desafio 1: `ros2 topic list` e pergunta curta sobre `/cmd_vel` e `/odom`.
+- Desafio 2: amostra de `/odom`, posição x/y relativa à origem de `odom` e
+  explicação de que o yaw vem do quaternion; o conteúdo explicita que, neste
+  cenário, a origem de `odom` foi alinhada à origem do mapa.
+- Desafio 3: previsão, comando validado de 0,2 m/s por 3 s e conclusão por
+  deslocamento novo ≥ 0,15 m e parada ≤ 0,02 m/s depois de uma pose de
+  referência capturada quando o exercício está pronto.
+- Desafio 4: ajuste de comandos, solução completa opcional com pose de partida
+  explícita e conclusão somente por `delivered` do `mission_monitor`.
+- Layout de três áreas: colunas lado a lado em desktop largo, desafio acima do
+  visor e terminal em largura intermediária e empilhamento em telas estreitas.
+- Prévia de comando com **Copiar** sempre disponível. **Inserir** só envia ao
+  PTY quando o agente confirma prompt e linha vazia; não há Ctrl+U automático;
+  o comando é de uma linha e só executa quando o aluno pressiona Enter.
+- Reinício por recriação do container, com descarte de telemetria antiga,
+  proteção contra cliques repetidos, mensagem de falha e nova tentativa.
+- Progresso em memória; recarregar reinicia o painel, comunicado na interface.
+- Confirmação final e gancho:
+  “Como o robô saberia que há uma caixa no caminho?”
+
+### Critérios de aceite executados
+
+- Um iniciante percorre os quatro desafios pela interface, com ação,
+  observação e dicas graduais.
+- Passar pela zona em movimento **não** conclui: o teste verifica
+  `in_zone=true`, `delivered=false` e velocidade acima do limite.
+- Parar dentro da zona por 2 s conclui: `delivered=true` do monitor real.
+- Reiniciar recria o container, restaura a pose inicial e reinicia o painel no
+  desafio 1.
+- `make stage1`, `make stage2a` e `make e2e` continuam passando.
+- Texto já digitado e `ros2 topic echo /odom` em execução bloqueiam a inserção
+  automática; Copiar permanece disponível.
+- Falha na criação do novo container é coberta pela API e pela UI; a interface
+  permite tentar novamente.
+
+### Evidência
+
+A Etapa 3 foi aprovada em 2026-11-21. `make stage1` OK (startup 6,28 s);
+`make stage2a` OK com Playwright 2A 1 passed em 48,6 s; `make e2e` 3 passed em
+2,4 min. `make test-mission` 5/5 e `make test-api` 2/2. Consulte
+`docs/stage3-results.md`.
 
 ## Requisitos não funcionais
 
 - Simulação sem interface gráfica, sem GPU, sem WSLg, X11 ou RViz.
 - API, frontend e runtime executam em containers; o perfil local usa
   `127.0.0.1`.
-- Etapa 2A: uma sessão simultânea. Etapa 2B: limite configurável, com
+- Etapas 2A e 3: uma sessão simultânea. Etapa 2B: limite configurável, com
   padrão 2 para desenvolvimento.
 - Etapa 2B: TTL de 30 min e inatividade de 10 min.
 - Isolamento de sessão com container próprio, sem rede externa, UDS, UID

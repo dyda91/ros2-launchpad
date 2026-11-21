@@ -10,9 +10,10 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
   watchdog — implementada e validada.
 - **Etapa 2A:** sessão local única no navegador, terminal real e Canvas 2D —
   implementada e validada.
+- **Etapa 3:** missão guiada "Primeiro Turno", quatro desafios, inserção segura
+  de comandos, validação da entrega e reinício — implementada e validada.
 - **Etapa 2B:** sessões simultâneas, reconexão, expiração e publicação —
   pendente.
-- **Etapa 3:** missão guiada completa — pendente.
 
 ## O que funciona
 
@@ -25,8 +26,11 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
 - Terminal xterm.js conectado a um PTY bash real dentro do container da
   sessão.
 - Visor Canvas 2D com o mesmo `map.json` do simulador e pose real de `/odom`.
-- Encerramento que remove o container e libera uma nova sessão na pose
-  inicial.
+- Missão guiada em quatro desafios, com ação/observação/dica e conteúdo em YAML.
+- Validação da entrega pelo `mission_monitor` real; passar pela zona em
+  movimento não conclui.
+- Reinício da missão que recria o container e volta à pose inicial.
+- Encerramento que remove o container e libera uma nova sessão.
 
 O acesso é apenas local, em loopback. Não há cadastro, publicação, LiDAR,
 SLAM, Nav2, visor 3D ou missão guiada nesta entrega.
@@ -48,7 +52,7 @@ docker info >/dev/null && echo "daemon ok"
 python3 --version
 ```
 
-## Início rápido — Etapa 2A
+## Início rápido — sessão e missão
 
 ```bash
 cd ~/ros2-launchpad
@@ -64,7 +68,7 @@ http://localhost:8080
 
 Clique em **Iniciar laboratório** e aguarde o estado **Pronto**. O simulador é
 iniciado automaticamente; não é necessário executar `ros2 launch` em outro
-terminal.
+terminal. O painel da missão aparece ao lado do visor e do terminal.
 
 Para parar:
 
@@ -79,6 +83,10 @@ make session-down
 ```
 
 ## O que testar no navegador
+
+A missão começa no desafio 1. Use **Copiar** ou **Inserir no terminal** na
+prévia do comando; pressione Enter no terminal. A inserção só é liberada
+quando o shell está no prompt vazio.
 
 No terminal do laboratório:
 
@@ -101,44 +109,45 @@ timeout 3 ros2 topic pub --rate 10 /cmd_vel \
   geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
 ```
 
-O robô deve andar no Canvas e parar após o watchdog. Clique em **Encerrar
-sessão** e inicie outra; a nova sessão começa na pose inicial.
+O robô deve andar no Canvas e parar após o watchdog. Siga os desafios 2, 3 e 4
+no painel. No desafio 4, a entrega só é confirmada quando o robô para dentro
+da zona por 2 s. Use **Reiniciar missão** para recriar a sessão e voltar ao
+desafio 1; **Encerrar sessão** libera a vaga.
+
+O progresso fica em memória: recarregar a página reinicia o painel.
 
 ## Aceite
 
 ```bash
-make stage1    # regressão da Etapa 1
-make stage2a   # Etapa 1 + integração 2A + Playwright
+make stage1      # regressão da Etapa 1
+make stage2a     # Etapa 1 + integração 2A + Playwright 2A
+make test-mission # schema e conteúdo da missão
+make test-api    # falha do novo container e retry
+make e2e         # Playwright completo: 2A + Primeiro Turno
+make stage3      # Etapa 1 + conteúdo/API + aplicação + Playwright
 ```
 
-O `make stage2a`:
-
-1. executa o aceite da Etapa 1;
-2. para o laboratório manual;
-3. sobe API e runtime em `127.0.0.1:8080`;
-4. valida sessão, mapa, tópicos, isolamento e encerramento;
-5. executa o Playwright real com terminal, Ctrl+C, movimento, Canvas e
-   reinício.
-
-Para rodar apenas o navegador automatizado:
-
-```bash
-make e2e
-```
+O `make e2e` valida terminal, Canvas, layout responsivo, os quatro desafios,
+inserção com texto já digitado, `ros2 topic echo` em execução, passagem pela
+zona em movimento, conclusão após a parada, reinício com pose e painel
+restaurados e a falha de reinício com nova tentativa.
 
 O Playwright usa Chromium headless em um container de teste com
 `--network host` para alcançar o loopback do WSL.
 
 ## Resultados observados
 
-Etapa 1: startup **5,85–6,61 s**, parada **0,400 s**, ~**67–70%** de um núcleo
-e **~258 MiB** ociosa. Etapa 2A: sessão pronta em **7,26 s**, Playwright
-**1 passed em 47,8–50,0 s**, sessão ociosa **73,81%** de um núcleo e **269,9 MiB**.
+Etapa 1: startup **6,25–6,28 s** na rodada final, parada **0,400 s**,
+~**67–70%** de um núcleo e **~258 MiB** ociosa. Etapa 2A: sessão pronta em
+**7,26 s**, Playwright 2A **1 passed em ~48 s**, sessão ociosa **73,81%** de um
+núcleo e **269,9 MiB**. Etapa 3: `make e2e` **3 passed em 2,4 min**; entrega
+validada pelo monitor real.
 
 Detalhes:
 
 - [`docs/stage1-results.md`](docs/stage1-results.md)
 - [`docs/stage2a-results.md`](docs/stage2a-results.md)
+- [`docs/stage3-results.md`](docs/stage3-results.md)
 
 ## Arquitetura
 
@@ -150,17 +159,19 @@ Navegador do Windows
   apps/api (FastAPI, 127.0.0.1:8080)
     - serve o build React/Vite
     - cookie HttpOnly, sessão única
+    - GET /api/mission e POST /api/session/restart
     - proxy de terminal e telemetria
         ├── HTTP interno + token ──► apps/runtime (Docker socket)
-        │                              └── cria/remove a sessão
+        │                              └── cria/recria/remove a sessão
         └── UDS /run/sessions/<id>/agent.sock
                                            │
                                            ▼
                              container de sessão (network none)
                                launchpad_agent (aiohttp em UDS)
                                  ├── ros2 launch
-                                 ├── PTY bash
-                                 └── rclpy /odom
+                                 ├── PTY bash + estado do prompt
+                                 ├── rclpy /odom
+                                 └── rclpy /launchpad/mission_status
 ```
 
 Apenas `apps/runtime` recebe `/var/run/docker.sock`. A API não tem Docker. O
@@ -216,7 +227,10 @@ make down        # para tudo e remove a sessão
 make session-down # força a remoção da sessão e reinicia API/runtime
 make stage1      # aceite da Etapa 1
 make stage2a     # aceite da Etapa 2A
-make e2e         # Playwright
+make stage3      # aceite da missão Primeiro Turno
+make e2e         # Playwright completo
+make test-mission # conteúdo da missão
+make test-api    # restart com falha e retry
 make lab-up      # laboratório manual
 make lab-shell   # shell no laboratório manual
 make lab-logs    # logs do laboratório manual
@@ -231,6 +245,7 @@ subir com Compose diretamente, defina `HOST_RUN_DIR` como caminho absoluto.
 
 ```text
 content/world/armazem.yaml                  fonte única da geometria
+content/missions/primeiro-turno.yaml        conteúdo da missão guiada
 lab/ros_ws/src/launchpad_sim/               URDF, gerador, watchdog e monitor
 lab/ros_ws/src/launchpad_bringup/           launch headless
 lab/image/Dockerfile                        imagem do laboratório
@@ -238,6 +253,7 @@ lab/image/agent/                            agente da sessão (aiohttp/PTY/ROS)
 apps/api/                                   FastAPI e proxy UDS
 apps/runtime/                               controlador do Docker
 apps/web/                                   React + TypeScript + Vite
+apps/web/src/components/MissionPanel.tsx    painel dos quatro desafios
 specs/001-primeiro-turno/                   spec, plan e tasks
 tests/integration/                          aceite real
 tests/e2e/                                  Playwright
@@ -259,6 +275,28 @@ make session-down
 
 Isso remove o container e reinicia API/runtime. A expiração automática fica
 para a Etapa 2B.
+
+**A entrega não conclui**
+
+A entrega só conta com `delivered=true`: o robô precisa ficar parado dentro da
+zona por 2 s. Passar pela zona em movimento não conclui. O painel mostra se
+está fora, em movimento na zona ou parado.
+
+**O botão “Inserir no terminal” está desabilitado**
+
+Ele só libera quando o shell está no prompt com a linha vazia. Se houver texto
+digitado ou um `ros2 topic echo` em execução, use **Copiar** ou Ctrl+C; não há
+Ctrl+U automático.
+
+**O reinício falhou**
+
+A interface mostra a falha e permite nova tentativa. Se o ambiente ficar preso,
+use `make session-down` ou `make down`.
+
+**Recarregar perdeu o progresso**
+
+O progresso é em memória nesta entrega; recarregar reinicia o painel. Para
+restaurar a pose também, use **Reiniciar missão**.
 
 **Aplicação não responde em 8080**
 
@@ -315,9 +353,11 @@ powershell.exe -NoProfile -Command \
 ## Limitações desta entrega
 
 - Uma sessão simultânea; o segundo navegador recebe “Laboratório em uso”.
-- Sem reconexão automática, expiração, TTL ou limpeza por inatividade.
-- Sem publicação pública, TLS, cadastro, LiDAR, SLAM, Nav2, visor 3D ou missão
-  guiada.
+- Sem reconexão automática, expiração, TTL ou limpeza por inatividade
+  (Etapa 2B).
+- Sem publicação pública, TLS, cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
+- O progresso da missão é em memória e reinicia ao recarregar.
+- A solução completa é opcional e calibrada para a pose após o desafio 3.
 - O perfil local não é um piloto público. O isolamento para shells anônimos
   exige validação adicional (rootless/VM, seccomp/AppArmor, auditoria).
 - O teste Playwright usa `--network host` no WSL; isso é artefato de teste.

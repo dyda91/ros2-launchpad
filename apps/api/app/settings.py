@@ -12,6 +12,7 @@ class Settings:
     max_sessions: int
     run_dir: str
     static_dir: str
+    mission_file: str
     ready_timeout_seconds: float
 
     @classmethod
@@ -34,6 +35,10 @@ class Settings:
             max_sessions=int(os.environ.get("MAX_SESSIONS", "1")),
             run_dir=os.environ.get("RUN_DIR", "/run/sessions"),
             static_dir=os.environ.get("STATIC_DIR", "/app/static"),
+            mission_file=os.environ.get(
+                "MISSION_FILE",
+                "/app/content/missions/primeiro-turno.yaml",
+            ),
             ready_timeout_seconds=float(
                 os.environ.get("READY_TIMEOUT_SECONDS", "45")
             ),

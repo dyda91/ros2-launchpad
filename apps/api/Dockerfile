@@ -15,6 +15,7 @@ COPY apps/api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY apps/api/app ./app
+COPY content/missions ./content/missions
 COPY --from=web /web/dist ./static
 
 RUN useradd --uid 1000 --create-home --shell /bin/bash launchpad

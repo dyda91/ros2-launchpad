@@ -1,0 +1,88 @@
+id: primeiro-turno
+version: 1
+title: Primeiro Turno
+intro: "Conduza o robô até a zona de coleta. Você vai descobrir os tópicos, ler a odometria e publicar um comando de velocidade."
+steps:
+  - id: topicos
+    kind: quiz
+    title: "Descubra os canais do robô"
+    concept: "Um tópico é um canal de mensagens do ROS 2. O robô recebe comandos e informa sua posição por tópicos diferentes."
+    action: "Clique em Copiar ou Inserir, execute o comando no terminal e pressione Enter. Depois observe a saída."
+    observe: "Procure /cmd_vel e /odom na lista de tópicos."
+    insertCommand: "ros2 topic list"
+    hints:
+      - "Os nomes aparecem um por linha, junto com outros tópicos internos."
+      - "O tópico que termina com cmd_vel é o canal de comandos de velocidade."
+    question:
+      prompt: "Qual combinação descreve corretamente os dois tópicos?"
+      options:
+        - "/cmd_vel recebe comandos de velocidade e /odom informa a posição."
+        - "/odom recebe comandos de velocidade e /cmd_vel informa a posição."
+        - "/clock recebe comandos de velocidade e /cmd_vel informa a posição."
+      answerIndex: 0
+    feedback: "Isso. /cmd_vel é a entrada de comandos; /odom informa pose e velocidade observadas."
+  - id: odometria
+    kind: quiz
+    title: "Veja onde o robô está"
+    concept: "Em /odom, x e y são a posição relativa à origem do referencial odom. Neste cenário, essa origem coincide com a origem do mapa porque o robô nasce em (0,0). O yaw é calculado a partir do quaternion da mensagem."
+    action: "Execute o comando para ler uma amostra da odometria e observe o visor ao lado."
+    observe: "O robô começa em x≈0 e y≈0. Confira também os campos de posição na mensagem."
+    insertCommand: "ros2 topic echo /odom --once"
+    hints:
+      - "A posição aparece em pose.pose.position, com x e y em metros."
+      - "A origem de odom foi alinhada à origem do mapa neste armazém; não é uma regra geral do ROS."
+      - "A orientação vem do quaternion; o yaw mostrado no visor é calculado a partir dele."
+    question:
+      prompt: "O robô está em x≈0 e y≈0. O que isso significa?"
+      options:
+        - "Ele está na origem do referencial odom, que neste cenário coincide com a origem do mapa."
+        - "Ele está dentro da zona de coleta."
+        - "Ele está com o yaw em 90 graus."
+      answerIndex: 0
+    feedback: "Certo. x e y são relativos à origem de odom. Neste armazém, essa origem foi definida na origem do mapa; yaw vem do quaternion."
+  - id: primeiro-movimento
+    kind: motion
+    title: "Preveja o primeiro movimento"
+    concept: "O campo linear.x de /cmd_vel é a velocidade para frente. Um comando limitado no tempo move o robô e depois o watchdog o faz parar."
+    action: "Escolha sua previsão. Depois copie ou insira o comando e pressione Enter no terminal."
+    observe: "Observe a pose no visor antes, durante e depois do movimento."
+    insertCommand: "timeout 3 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
+    prediction:
+      prompt: "Com linear.x igual a 0.2 por cerca de 3 segundos, o que deve acontecer?"
+      options:
+        - "O robô anda para frente e depois para."
+        - "O robô gira no lugar sem andar."
+        - "O robô permanece parado."
+      answerIndex: 0
+    command: "timeout 3 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
+    minDisplacementM: 0.15
+    stopSpeedMps: 0.02
+    hints:
+      - "A velocidade linear positiva aponta para a frente do robô."
+      - "O comando publica por 3 segundos; depois o watchdog zera a velocidade."
+    feedback: "Muito bem. Você publicou uma velocidade e viu o deslocamento real da odometria."
+  - id: entrega
+    kind: delivery
+    title: "Faça a entrega"
+    concept: "Combine linear.x para andar e angular.z para girar. A entrega só conta quando o robô para dentro da zona por 2 segundos."
+    action: "Ajuste os comandos, leve o robô até a zona de coleta e pare dentro dela."
+    observe: "O painel mostra se o robô está na zona, se ainda se move e há quanto tempo está parado."
+    hints:
+      - "Use o visor para corrigir o rumo. Faça movimentos curtos e confira a pose."
+      - "Para girar, use angular.z; para avançar, use linear.x."
+      - "A zona fica à direita e acima do ponto inicial. Entre nela e deixe o robô parar."
+    solution:
+      - "timeout 16.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.35}}\""
+      - "timeout 2.85 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\""
+      - "timeout 10.0 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.35}}\""
+    solutionStart:
+      x: 0.44
+      y: 0.0
+      yaw: 0.0
+      tolerance: 0.2
+    hintsNote: "A solução completa é opcional e foi calibrada para a pose ao final do desafio 3."
+    feedback: "Entrega concluída. Você usou os tópicos, leu a odometria, publicou comandos e parou na zona."
+success:
+  title: "Entrega concluída"
+  body: "Você identificou os canais do robô, leu a posição em /odom, publicou uma velocidade e conduziu o robô até a zona de coleta."
+  hook: "Como o robô saberia que há uma caixa no caminho?"

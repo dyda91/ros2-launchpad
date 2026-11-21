@@ -90,20 +90,43 @@ Windows localhost/api/health        {"api":"ok","runtime":true,...}
 | T2B.4 | pendente | Falhas de inicialização e limpeza com retry | testes de caos |
 | T2B.5 | pendente | Validação de isolamento para piloto público | rootless/VM, seccomp, auditoria |
 
-## Fase 3 — Missão guiada (pendente)
+## Fase 3 — Missão guiada (concluída)
 
-| ID | Status | Tarefa | Verificação planejada |
+| ID | Status | Tarefa | Verificação executada |
 |---|---|---|---|
-| T3.1 | pendente | Arquivos de conteúdo da missão e schema | validação de schema; sem textos hardcoded |
-| T3.2 | pendente | Quatro passos com ação/observação/dica e "Inserir comando" | teste de inserção sem execução |
-| T3.3 | pendente | Validação final e tela de sucesso com gancho de LiDAR | rota real; entrega por pose e velocidade |
-| T3.4 | pendente | Playwright real com terminal, Canvas, dois perfis e ciclo de vida | `make e2e` |
-| T3.5 | pendente | Medições com 1 e 2 sessões, README final e revisão do diff | `docker stats`; `git diff --check` |
+| T3.1 | concluído | Criar `content/missions/primeiro-turno.yaml` e validação de schema | `make test-mission` 5/5 |
+| T3.2 | concluído | Quatro desafios com ação, observação, dicas graduais e respostas | Playwright percorre os quatro |
+| T3.3 | concluído | Prévia + Copiar sempre; Inserir só com prompt vazio; sem Enter automático | testes com texto digitado e `ros2 topic echo` em execução |
+| T3.4 | concluído | Capturar pose de referência no desafio 3; deslocamento novo e parada | pose após o comando, sem depender do shell |
+| T3.5 | concluído | Validar entrega apenas por `delivered` do monitor; solução com pose explícita | rota calibrada; passagem em movimento não conclui |
+| T3.6 | concluído | Layout largo/intermediário/estreito e três áreas na mesma tela | Playwright mede bounding boxes nos três tamanhos |
+| T3.7 | concluído | Reiniciar por recriação do container; telemetria antiga; falha e retry | Playwright + `test_session_restart_failure.py` |
+| T3.8 | concluído | Playwright da missão: passagem em movimento, parada, sucesso, gancho e reinício | `stage3.spec.ts` 2 passed |
+| T3.9 | concluído | Regressão completa e documentação | `make stage1`, `make stage2a`, `make e2e` |
+
+### Evidências da Etapa 3
+
+```text
+make stage1                         OK; startup 6.28 s
+make stage2a                        OK; integração 2A; Playwright 2A 1 passed (48.6 s)
+make e2e                            3 passed (2.4 min)
+make test-mission                   5/5 OK
+make test-api                       2/2 OK
+
+passagem pela zona em movimento      in_zone=true, delivered=false, v>0.02
+parada dentro da zona                delivered=true após 2 s
+reinício                             passo 1, pose x≈0
+falha do novo container              erro na UI + tentativa novamente
+texto no prompt / echo em execução   Inserir desabilitado; Copiar disponível
+layout 1600 / 1280 / 800 px          três colunas / desafio acima / empilhado
+```
 
 ## Pendências conhecidas
 
-- A Etapa 2A tem uma sessão única e não implementa reconexão, expiração ou
-  publicação.
-- Duas sessões simultâneas ainda não foram medidas; a Etapa 2B fará isso.
+- A Etapa 2B permanece pendente: múltiplas sessões, reconexão, expiração,
+  publicação e medição de duas sessões.
+- O progresso da missão fica em memória e reinicia ao recarregar a página.
+- A solução completa da missão é opcional e calibrada para a pose após o
+  desafio 3.
 - O piloto público exige validação de isolamento além do Docker local.
 - O aviso KDL do link raiz com inércia permanece; não afeta o aceite.

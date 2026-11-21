@@ -70,3 +70,68 @@ export interface MapData {
   };
   obstacles: Obstacle[];
 }
+
+export interface MissionQuestion {
+  prompt: string;
+  options: string[];
+  answerIndex: number;
+}
+
+export interface MissionStep {
+  id: string;
+  kind: "quiz" | "motion" | "delivery";
+  title: string;
+  concept: string;
+  action: string;
+  observe?: string;
+  insertCommand?: string;
+  hints: string[];
+  feedback?: string;
+  question?: MissionQuestion;
+  prediction?: MissionQuestion;
+  command?: string;
+  minDisplacementM?: number;
+  stopSpeedMps?: number;
+  solution?: string[];
+  solutionStart?: {
+    x: number;
+    y: number;
+    yaw: number;
+    tolerance: number;
+  };
+  hintsNote?: string;
+}
+
+export interface MissionContent {
+  id: string;
+  version: number;
+  title: string;
+  intro: string;
+  steps: MissionStep[];
+  success: {
+    title: string;
+    body: string;
+    hook: string;
+  };
+}
+
+export interface MissionStatus {
+  zoneId: string;
+  inZone: boolean;
+  speedMps: number;
+  angularSpeedRps: number;
+  stoppedForS: number;
+  delivered: boolean;
+  pose: { x: number; y: number } | null;
+}
+
+export interface TerminalState {
+  prompt: boolean;
+  lineEmpty: boolean;
+  running: boolean;
+}
+
+export interface InsertResult {
+  ok: boolean;
+  reason: string;
+}

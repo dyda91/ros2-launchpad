@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .agent_client import AgentClient
+from .mission_content import load_mission
 from .runtime_client import RuntimeClient
 from .sessions import SessionManager
 from .settings import Settings
@@ -21,6 +22,7 @@ async def lifespan(app):
     manager = SessionManager(settings, runtime, AgentClient())
     app.state.manager = manager
     app.state.runtime = runtime
+    app.state.mission = load_mission(settings.mission_file)
     yield
     await manager.shutdown()
     await runtime.close()
@@ -63,10 +65,20 @@ async def session_state(request: Request):
     return manager(request).state(cookie)
 
 
-@app.post("/api/session", status_code=202)
-async def create_session(request: Request):
-    cookie = request.cookies.get(settings.cookie_name)
-    payload, created = await manager(request).create(cookie)
+def set_session_cookie(response, session):
+    response.set_cookie(
+        settings.cookie_name,
+        session.session_id,
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
+        max_age=7200,
+        path="/",
+    )
+    return response
+
+
+def session_response(request, payload, created):
     state = payload.get("state")
     if state == "full":
         return JSONResponse(payload, status_code=409)
@@ -76,18 +88,23 @@ async def create_session(request: Request):
         payload,
         status_code=200 if state == "ready" else 202,
     )
-    if created and payload.get("state") != "error":
-        session = manager(request)._session
-        response.set_cookie(
-            settings.cookie_name,
-            session.session_id,
-            httponly=True,
-            samesite="lax",
-            secure=settings.cookie_secure,
-            max_age=7200,
-            path="/",
-        )
+    if created and state != "error":
+        set_session_cookie(response, manager(request)._session)
     return response
+
+
+@app.post("/api/session", status_code=202)
+async def create_session(request: Request):
+    cookie = request.cookies.get(settings.cookie_name)
+    payload, created = await manager(request).create(cookie)
+    return session_response(request, payload, created)
+
+
+@app.post("/api/session/restart", status_code=202)
+async def restart_session(request: Request):
+    cookie = request.cookies.get(settings.cookie_name)
+    payload, created = await manager(request).restart(cookie)
+    return session_response(request, payload, created)
 
 
 @app.delete("/api/session", status_code=204)
@@ -98,6 +115,11 @@ async def delete_session(request: Request):
     response = Response(status_code=204)
     response.delete_cookie(settings.cookie_name, path="/")
     return response
+
+
+@app.get("/api/mission")
+async def mission_content(request: Request):
+    return request.app.state.mission
 
 
 @app.get("/api/map")

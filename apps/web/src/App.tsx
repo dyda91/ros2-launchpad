@@ -1,22 +1,49 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import Terminal from "./components/Terminal";
+import MissionPanel from "./components/MissionPanel";
+import Terminal, { type TerminalHandle } from "./components/Terminal";
 import WarehouseCanvas from "./components/WarehouseCanvas";
 import {
   endSession,
   getMap,
+  getMission,
   getSession,
+  restartSession,
   startSession,
   wsUrl
 } from "./lib/api";
-import type { MapData, Pose, SessionStatus } from "./types";
+import type {
+  InsertResult,
+  MapData,
+  MissionContent,
+  MissionStatus,
+  Pose,
+  SessionStatus,
+  TerminalState
+} from "./types";
 
 const stageLabels: Record<string, string> = {
   creating: "Criando o ambiente",
   starting: "Iniciando o simulador",
   waiting_odom: "Aguardando a odometria",
-  ready: "Pronto"
+  ready: "Pronto",
+  restarting: "Reiniciando a missão"
 };
+
+function missionStatusFromMessage(message: Record<string, unknown>) {
+  if (typeof message.delivered !== "boolean") {
+    return null;
+  }
+  return {
+    zoneId: String(message.zone_id ?? "coleta"),
+    inZone: Boolean(message.in_zone),
+    speedMps: Number(message.speed_mps ?? 0),
+    angularSpeedRps: Number(message.angular_speed_rps ?? 0),
+    stoppedForS: Number(message.stopped_for_s ?? 0),
+    delivered: Boolean(message.delivered),
+    pose: (message.pose ?? null) as MissionStatus["pose"]
+  };
+}
 
 function statusLabel(state: SessionStatus["state"]) {
   switch (state) {
@@ -38,9 +65,16 @@ function statusLabel(state: SessionStatus["state"]) {
 export default function App() {
   const [session, setSession] = useState<SessionStatus>({ state: "idle" });
   const [map, setMap] = useState<MapData | null>(null);
+  const [mission, setMission] = useState<MissionContent | null>(null);
+  const [missionStatus, setMissionStatus] = useState<MissionStatus | null>(null);
   const [pose, setPose] = useState<Pose | null>(null);
+  const [terminalState, setTerminalState] = useState<TerminalState | null>(null);
+  const [insertNotice, setInsertNotice] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const terminalRef = useRef<TerminalHandle>(null);
+  const generationRef = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -64,7 +98,25 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (session.state !== "preparing") {
+    let alive = true;
+    getMission()
+      .then((content) => {
+        if (alive) {
+          setMission(content);
+        }
+      })
+      .catch((error: Error) => {
+        if (alive) {
+          setNotice(error.message);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (session.state !== "preparing" || restarting) {
       return;
     }
     const timer = window.setInterval(async () => {
@@ -79,7 +131,7 @@ export default function App() {
       }
     }, 500);
     return () => window.clearInterval(timer);
-  }, [session.state]);
+  }, [session.state, restarting]);
 
   useEffect(() => {
     if (session.state !== "ready") {
@@ -106,12 +158,25 @@ export default function App() {
     if (session.state !== "ready") {
       return;
     }
+    const generation = generationRef.current;
     const socket = new WebSocket(wsUrl("/ws/telemetry"));
     socket.onmessage = (event) => {
+      if (generationRef.current !== generation) {
+        return;
+      }
       try {
-        const message = JSON.parse(event.data as string);
+        const message = JSON.parse(event.data as string) as Record<
+          string,
+          unknown
+        >;
         if (message.type === "pose") {
-          setPose(message as Pose);
+          setPose(message as unknown as Pose);
+        }
+        if (message.type === "mission") {
+          const status = missionStatusFromMessage(message);
+          if (status !== null) {
+            setMissionStatus(status);
+          }
         }
         if (message.type === "state" && message.state === "error") {
           setSession({
@@ -126,9 +191,30 @@ export default function App() {
     return () => socket.close();
   }, [session.state]);
 
+  function handleTerminalState(state: TerminalState) {
+    setTerminalState(state);
+  }
+
+  function handleInsertResult(result: InsertResult) {
+    setInsertNotice(
+      result.ok
+        ? "Comando inserido. Pressione Enter no terminal."
+        : `Não foi possível inserir: ${result.reason}. Use Copiar.`
+    );
+  }
+
+  function handleInsert(command: string) {
+    setInsertNotice("");
+    terminalRef.current?.insert(command);
+  }
+
   async function handleStart() {
+    generationRef.current += 1;
     setBusy(true);
     setNotice("");
+    setMissionStatus(null);
+    setTerminalState(null);
+    setInsertNotice("");
     try {
       const status = await startSession();
       setSession(status);
@@ -148,6 +234,37 @@ export default function App() {
     }
   }
 
+  async function handleRestart() {
+    if (busy || restarting) {
+      return;
+    }
+    generationRef.current += 1;
+    setBusy(true);
+    setRestarting(true);
+    setNotice("");
+    setSession({ state: "preparing", stage: "restarting" });
+    setMap(null);
+    setPose(null);
+    setMissionStatus(null);
+    setTerminalState(null);
+    setInsertNotice("");
+    try {
+      const status = await restartSession();
+      setSession(status);
+      if (status.state === "error") {
+        setNotice(status.error ?? "não foi possível reiniciar o laboratório");
+      }
+    } catch {
+      setSession({
+        state: "error",
+        error: "não foi possível reiniciar o laboratório"
+      });
+    } finally {
+      setBusy(false);
+      setRestarting(false);
+    }
+  }
+
   async function handleRefresh() {
     setBusy(true);
     try {
@@ -161,6 +278,7 @@ export default function App() {
   }
 
   async function handleEnd() {
+    generationRef.current += 1;
     setBusy(true);
     try {
       await endSession();
@@ -168,6 +286,9 @@ export default function App() {
       setSession({ state: "idle" });
       setMap(null);
       setPose(null);
+      setMissionStatus(null);
+      setTerminalState(null);
+      setInsertNotice("");
       setNotice("");
       setBusy(false);
     }
@@ -297,7 +418,29 @@ export default function App() {
       ) : null}
 
       {session.state === "ready" ? (
-        <main className="workspace">
+        <main className="workspace mission-workspace">
+          {mission !== null ? (
+            <MissionPanel
+              mission={mission}
+              pose={pose}
+              missionStatus={missionStatus}
+              terminalState={terminalState}
+              insertNotice={insertNotice}
+              busy={busy}
+              restarting={restarting}
+              onInsert={handleInsert}
+              onRestart={handleRestart}
+            />
+          ) : (
+            <aside className="panel mission-panel">
+              <div className="mission-body">
+                <p className="eyebrow">Missão</p>
+                <h2>Carregando o Primeiro Turno...</h2>
+                {notice ? <p>{notice}</p> : null}
+              </div>
+            </aside>
+          )}
+
           <section className="panel viewport-panel">
             <div className="panel-header">
               <div>
@@ -337,9 +480,9 @@ export default function App() {
               </span>
             </div>
             <div className="instructions">
-              <strong>Laboratório pronto.</strong> No terminal, execute{" "}
-              <code>ros2 topic list</code>. Para mover, use{" "}
-              <code>timeout 3 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist &quot;{"{"}linear: {"{"}x: 0.2{"}"}{"}"}&quot;</code>.
+              O visor usa a pose real de <code>/odom</code>. A missão ao lado
+              conduz cada ação; o terminal permanece disponível para suas
+              próprias explorações.
             </div>
           </section>
 
@@ -352,7 +495,12 @@ export default function App() {
               <span className="panel-note">ROS 2 Jazzy</span>
             </div>
             <div className="terminal-wrap">
-              <Terminal wsPath="/ws/terminal" />
+              <Terminal
+                ref={terminalRef}
+                wsPath="/ws/terminal"
+                onTerminalState={handleTerminalState}
+                onInsertResult={handleInsertResult}
+              />
             </div>
           </section>
         </main>

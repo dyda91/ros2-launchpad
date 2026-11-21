@@ -1,4 +1,4 @@
-import type { MapData, SessionStatus } from "../types";
+import type { MapData, MissionContent, SessionStatus } from "../types";
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json();
@@ -28,6 +28,24 @@ export async function endSession(): Promise<void> {
     method: "DELETE",
     credentials: "same-origin"
   });
+}
+
+export async function restartSession(): Promise<SessionStatus> {
+  const response = await fetch("/api/session/restart", {
+    method: "POST",
+    credentials: "same-origin"
+  });
+  return parseResponse<SessionStatus>(response);
+}
+
+export async function getMission(): Promise<MissionContent> {
+  const response = await fetch("/api/mission", {
+    credentials: "same-origin"
+  });
+  if (!response.ok) {
+    throw new Error("não foi possível carregar a missão");
+  }
+  return parseResponse<MissionContent>(response);
 }
 
 export async function getMap(): Promise<MapData> {

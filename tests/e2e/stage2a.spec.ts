@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+test.afterEach(async ({ page }) => {
+  try {
+    await page.request.delete("/api/session");
+  } catch {
+    return;
+  }
+});
+
 test("Etapa 2A: terminal real, visor e ciclo da sessão", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("start-button")).toBeVisible();
@@ -11,6 +19,38 @@ test("Etapa 2A: terminal real, visor e ciclo da sessão", async ({ page }) => {
   );
   await expect(page.getByTestId("terminal")).toBeVisible();
   await expect(page.getByTestId("robot-pose")).toBeVisible();
+
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const wideMission = await page.getByTestId("mission-panel").boundingBox();
+  const wideViewport = await page.getByTestId("robot-pose").boundingBox();
+  const wideTerminal = await page.getByTestId("terminal").boundingBox();
+  expect(wideMission).not.toBeNull();
+  expect(wideViewport).not.toBeNull();
+  expect(wideTerminal).not.toBeNull();
+  expect(wideMission!.x).toBeLessThan(wideViewport!.x);
+  expect(wideViewport!.x).toBeLessThan(wideTerminal!.x);
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const mediumMission = await page.getByTestId("mission-panel").boundingBox();
+  const mediumViewport = await page.getByTestId("robot-pose").boundingBox();
+  const mediumTerminal = await page.getByTestId("terminal").boundingBox();
+  expect(mediumMission).not.toBeNull();
+  expect(mediumViewport).not.toBeNull();
+  expect(mediumTerminal).not.toBeNull();
+  expect(mediumMission!.y).toBeLessThan(mediumViewport!.y);
+  expect(Math.abs(mediumViewport!.y - mediumTerminal!.y)).toBeLessThan(12);
+
+  await page.setViewportSize({ width: 800, height: 900 });
+  const narrowMission = await page.getByTestId("mission-panel").boundingBox();
+  const narrowViewport = await page.getByTestId("robot-pose").boundingBox();
+  const narrowTerminal = await page.getByTestId("terminal").boundingBox();
+  expect(narrowMission).not.toBeNull();
+  expect(narrowViewport).not.toBeNull();
+  expect(narrowTerminal).not.toBeNull();
+  expect(narrowMission!.y).toBeLessThan(narrowViewport!.y);
+  expect(narrowViewport!.y).toBeLessThan(narrowTerminal!.y);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
   const canvasBytes = await page
     .locator("canvas.warehouse-canvas")
     .evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL().length);

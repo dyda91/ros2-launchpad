@@ -1,9 +1,11 @@
+import json
 import math
 import threading
 
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from std_msgs.msg import String
 
 
 def yaw_from_quaternion(quaternion):
@@ -17,6 +19,7 @@ class RosBridge:
     def __init__(self):
         self._lock = threading.Lock()
         self._latest = None
+        self._mission = None
         self._ready = threading.Event()
         self._closed = False
         self._node = None
@@ -24,6 +27,12 @@ class RosBridge:
         rclpy.init(args=None)
         self._node = Node("launchpad_session_agent")
         self._node.create_subscription(Odometry, "/odom", self._on_odom, 10)
+        self._node.create_subscription(
+            String,
+            "/launchpad/mission_status",
+            self._on_mission,
+            10,
+        )
         self._thread = threading.Thread(
             target=self._spin,
             name="launchpad-ros-bridge",
@@ -68,12 +77,26 @@ class RosBridge:
             self._latest = payload
         self._ready.set()
 
+    def _on_mission(self, message):
+        try:
+            payload = json.loads(message.data)
+        except (TypeError, json.JSONDecodeError):
+            return
+        if not isinstance(payload, dict):
+            return
+        with self._lock:
+            self._mission = payload
+
     def ready(self):
         return self._ready.is_set()
 
     def latest(self):
         with self._lock:
             return dict(self._latest) if self._latest is not None else None
+
+    def latest_mission(self):
+        with self._lock:
+            return dict(self._mission) if self._mission is not None else None
 
     def close(self):
         if self._closed:

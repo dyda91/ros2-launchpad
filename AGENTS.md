@@ -2,19 +2,21 @@
 
 ## Estado atual
 
-O repositório implementa a **Etapa 1** e a **Etapa 2A** do ROS 2 Launchpad.
-A Etapa 2B (sessões simultâneas, reconexão, expiração e publicação) e a Etapa
-3 (missão guiada completa) estão especificadas, mas não implementadas.
+O repositório implementa as **Etapas 1, 2A e 3** do ROS 2 Launchpad. A Etapa
+2B (sessões simultâneas, reconexão, expiração e publicação) permanece
+especificada, mas não implementada.
 
-A Etapa 2A é uma sessão local única, acessível em `http://localhost:8080`,
-com terminal Linux real, Canvas 2D e ROS 2 real. Não há cadastro.
+A sessão local única fica em `http://localhost:8080`, com terminal Linux real,
+Canvas 2D, ROS 2 real e a missão guiada "Primeiro Turno". Não há cadastro.
 
 ## Estrutura
 
 ```text
 content/world/armazem.yaml                  fonte única da geometria
+content/missions/primeiro-turno.yaml        conteúdo da missão guiada
 docs/stage1-results.md                      evidências da Etapa 1
 docs/stage2a-results.md                     evidências da Etapa 2A
+docs/stage3-results.md                      evidências da Etapa 3
 lab/ros_ws/src/launchpad_sim/               robô, mundo, watchdog e monitor
 lab/ros_ws/src/launchpad_bringup/           launch headless
 lab/image/Dockerfile                        imagem do laboratório
@@ -47,7 +49,7 @@ Makefile                                    comandos reproduzíveis
 - Não copiar, clonar nem importar código do projeto
   `ros2-warehouse-amr-simulator` ou de outros projetos pessoais.
 - Não adicionar GUI, WSLg, X11, RViz, GPU ou publicação pública.
-- Uma sessão simultânea nesta entrega; não implementar 2B/3 sem revisão.
+- Uma sessão simultânea nesta entrega; não implementar 2B sem revisão.
 
 ## Comandos reais
 
@@ -58,8 +60,11 @@ make up                    # constrói e sobe a aplicação em 127.0.0.1:8080
 make down                  # para aplicação e remove a sessão
 make session-down          # força a remoção da sessão ativa
 make stage1                # aceite completo da Etapa 1
-make stage2a               # Etapa 1 + integração 2A + Playwright
-make e2e                   # Playwright contra a aplicação local
+make stage2a               # Etapa 1 + integração 2A + Playwright 2A
+make stage3                # Etapa 1 + conteúdo/API + aplicação + Playwright
+make e2e                   # Playwright completo (2A + missão)
+make test-mission          # schema e conteúdo da missão
+make test-api              # restart com falha e retry
 make test-world            # geometria e geração do mundo
 make lab-up                # container manual da Etapa 1
 make lab-shell             # shell no laboratório manual
@@ -78,7 +83,8 @@ source /ros_ws/install/setup.bash
 ros2 launch launchpad_bringup lab.launch.py
 ```
 
-Dentro do terminal do navegador (Etapa 2A), o ambiente já está carregado:
+Dentro do terminal do navegador, o ambiente já está carregado. A missão guia
+os quatro desafios; os comandos abaixo são a referência da Etapa 1:
 
 ```bash
 ros2 topic list
@@ -87,6 +93,10 @@ timeout 3 ros2 topic pub --rate 10 /cmd_vel \
   geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
 ```
 
+A missão usa o monitor ROS para confirmar a entrega: pare dentro da zona por
+2 s. A solução completa é opcional e fica na última dica; o progresso é em
+memória e reinicia ao recarregar a página.
+
 ## Portão de verificação
 
 Antes de concluir qualquer alteração:
@@ -94,14 +104,15 @@ Antes de concluir qualquer alteração:
 ```bash
 make stage1
 make stage2a
+make e2e
 ```
 
 O aceite exige dados reais do simulador e do ROS 2, não mocks. Atualize
-`specs/001-primeiro-turno/tasks.md`, `docs/stage1-results.md` e
-`docs/stage2a-results.md` com o que foi executado, o que passou e o que
-permanece pendente.
+`specs/001-primeiro-turno/tasks.md`, `docs/stage1-results.md`,
+`docs/stage2a-results.md` e `docs/stage3-results.md` com o que foi executado,
+o que passou e o que permanece pendente.
 
-## Runtime e segurança na Etapa 2A
+## Runtime e segurança (Etapas 2A e 3)
 
 - `apps/runtime` é o único componente com `/var/run/docker.sock`; ele cria,
   inspeciona e remove `ros2-launchpad-session`.
@@ -113,6 +124,8 @@ permanece pendente.
   socket Docker nem rede externa.
 - A UDS fica em `/run/sessions/<id>/agent.sock`; o container monta apenas o
   próprio diretório em `/run/agent`.
+- O reinício da missão remove e recria o container; a UI descarta telemetria
+  por geração e trata falha de criação com nova tentativa.
 - Cookie `HttpOnly`, `SameSite=Lax`; validação de `Origin`; token do agente
   não é exposto ao shell.
 - `HOST_RUN_DIR` é passado pelo Makefile para o runtime e deve ser um caminho
@@ -121,13 +134,16 @@ permanece pendente.
   sozinho não é uma fronteira forte; rootless/VM/seccomp/AppArmor e auditoria
   são requisitos da Etapa 2B.
 
-## Limitações da Etapa 2A
+## Limitações atuais
 
 - Uma sessão por vez; um segundo navegador recebe `full`.
-- Sem reconexão automática, TTL, inatividade ou limpeza automática.
+- Sem reconexão automática, TTL, inatividade ou limpeza automática (Etapa 2B).
 - Se o navegador fechar sem clicar em “Encerrar sessão”, use
   `make session-down` ou `make down`.
-- Sem publicação, cadastro, LiDAR, SLAM, Nav2, visor 3D ou missão guiada.
+- Sem publicação, cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
+- O progresso da missão é em memória e reinicia ao recarregar a página.
+- A solução completa da missão é opcional e calibrada para a pose após o
+  desafio 3.
 - A sessão em si não monta `/tests`, `/content` nem o repositório.
 
 ## Avisos conhecidos

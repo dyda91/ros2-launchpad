@@ -5,7 +5,7 @@ HOST_RUN_DIR ?= $(CURDIR)/run/sessions
 RUNTIME_TOKEN ?= dev-local-runtime-token
 E2E_IMAGE ?= ros2-launchpad-e2e:dev
 
-.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world stage1 up down session-down e2e e2e-image stage2a clean
+.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-mission test-api stage1 up down session-down e2e e2e-image e2e-2a e2e-3 stage2a stage3 stage2a-clean clean
 
 help:
 	@printf '%s\n' \
@@ -21,7 +21,10 @@ help:
 		'down        para aplicação e remove a sessão' \
 		'session-down força a remoção da sessão' \
 		'e2e         executa Playwright contra a aplicação local' \
+		'test-mission valida o conteúdo da missão' \
+		'test-api    testa falha/retry do restart da sessão' \
 		'stage2a     executa o aceite completo da Etapa 2A' \
+		'stage3      executa o aceite da missão Primeiro Turno' \
 		'clean       remove containers e artefatos gerados'
 
 build:
@@ -84,10 +87,28 @@ session-down:
 e2e-image:
 	docker build -t $(E2E_IMAGE) -f tests/e2e/Dockerfile tests/e2e
 
-e2e: up e2e-image
+e2e: up e2e-image stage2a-clean
 	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE)
 
+e2e-2a: up e2e-image stage2a-clean
+	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) npx playwright test stage2a.spec.ts
+
+e2e-3: up e2e-image stage2a-clean
+	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) npx playwright test stage3.spec.ts
+
+stage2a-clean:
+	-docker rm -f ros2-launchpad-session >/dev/null 2>&1 || true
+	rm -rf run/sessions/*
+	$(COMPOSE) restart runtime api >/dev/null
+	sleep 2
+
 stage2a: stage1
+	$(COMPOSE) stop lab
+	$(MAKE) up
+	bash tests/integration/stage2a_acceptance.sh
+	$(MAKE) e2e-2a
+
+stage3: stage1 test-mission test-api
 	$(COMPOSE) stop lab
 	$(MAKE) up
 	bash tests/integration/stage2a_acceptance.sh
@@ -98,3 +119,18 @@ clean:
 	rm -f lab/ros_ws/src/launchpad_sim/worlds/armazem.sdf \
 		lab/ros_ws/src/launchpad_sim/config/map.json
 	rm -rf run/sessions/*
+
+test-mission: build-app
+	docker run --rm \
+		-v "$(CURDIR)/content:/content:ro" \
+		-v "$(CURDIR)/tests:/tests:ro" \
+		-v "$(CURDIR)/apps/api:/app" \
+		-w /app ros2-launchpad-api:dev \
+		python /tests/integration/test_mission_content.py -v
+
+test-api: build-app
+	docker run --rm \
+		-v "$(CURDIR)/tests:/tests:ro" \
+		-v "$(CURDIR)/apps/api:/app" \
+		-w /app ros2-launchpad-api:dev \
+		python /tests/integration/test_session_restart_failure.py -v

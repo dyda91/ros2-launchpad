@@ -1,5 +1,8 @@
 # Resultados da Etapa 2A
 
+> Resultados históricos desta etapa. A Etapa 3 posterior adicionou a missão
+guiada, o painel de desafios e o reinício; consulte `docs/stage3-results.md`.
+
 Data: 2026-11-21 (horário local da sessão de desenvolvimento).
 
 ## Escopo validado

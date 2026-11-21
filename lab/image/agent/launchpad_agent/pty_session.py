@@ -7,6 +7,8 @@ import signal
 import struct
 import termios
 
+PROMPT_MARKER = b"\x1b]1337;LaunchpadPrompt\x07"
+
 
 class PtySession:
     def __init__(self, env):
@@ -16,6 +18,11 @@ class PtySession:
         self.pid = None
         self.clients = set()
         self.buffer = bytearray()
+        self._scan_buffer = bytearray()
+        self.at_prompt = False
+        self.line_empty = True
+        self.running = False
+        self._last_state = None
 
     def ensure(self, loop, cols=80, rows=24):
         if self.fd is not None:
@@ -30,7 +37,10 @@ class PtySession:
                         "bash",
                         "-lc",
                         "source /opt/ros/jazzy/setup.bash; "
-                        "source /ros_ws/install/setup.bash; exec bash -i",
+                        "source /ros_ws/install/setup.bash; "
+                        "PS1='\\[\\e]1337;LaunchpadPrompt\\a\\]"
+                        "\\u@\\h:\\w\\$ '; export PS1; "
+                        "exec bash --noprofile --norc -i",
                     ],
                     self.env,
                 )
@@ -56,6 +66,7 @@ class PtySession:
         self.buffer.extend(data)
         if len(self.buffer) > 131072:
             del self.buffer[:-131072]
+        self._scan_for_prompt(data)
         text = data.decode("utf-8", "replace")
         for client in list(self.clients):
             if client.closed:
@@ -64,6 +75,41 @@ class PtySession:
             self.loop.create_task(
                 client.send_str(json.dumps({"type": "output", "data": text}))
             )
+
+    def _scan_for_prompt(self, data):
+        self._scan_buffer.extend(data)
+        if len(self._scan_buffer) > 4096:
+            del self._scan_buffer[:-4096]
+        index = self._scan_buffer.find(PROMPT_MARKER)
+        if index < 0:
+            return
+        del self._scan_buffer[: index + len(PROMPT_MARKER)]
+        self._set_state(True, True, False)
+
+    def terminal_state(self):
+        return {
+            "type": "terminal_state",
+            "prompt": self.at_prompt,
+            "lineEmpty": self.line_empty,
+            "running": self.running,
+        }
+
+    def _set_state(self, prompt, line_empty, running):
+        state = (prompt, line_empty, running)
+        if state == self._last_state:
+            return
+        self.at_prompt = prompt
+        self.line_empty = line_empty
+        self.running = running
+        self._last_state = state
+        if self.loop is None:
+            return
+        payload = json.dumps(self.terminal_state())
+        for client in list(self.clients):
+            if client.closed:
+                self.clients.discard(client)
+                continue
+            self.loop.create_task(client.send_str(payload))
 
     async def add_client(self, client, cols=80, rows=24):
         self.ensure(self.loop or asyncio.get_running_loop(), cols, rows)
@@ -77,13 +123,29 @@ class PtySession:
                     }
                 )
             )
+        await client.send_str(json.dumps(self.terminal_state()))
 
     def remove_client(self, client):
         self.clients.discard(client)
 
-    def write(self, data):
-        if self.fd is not None:
-            os.write(self.fd, data.encode("utf-8"))
+    def send_input(self, data):
+        if self.fd is None or not data:
+            return
+        if "\r" in data or "\n" in data:
+            self._set_state(False, False, True)
+        elif self.at_prompt:
+            self._set_state(True, False, False)
+        os.write(self.fd, data.encode("utf-8"))
+
+    def can_insert(self):
+        return self.at_prompt and self.line_empty and not self.running
+
+    def insert(self, text):
+        if not self.can_insert():
+            return False, "o shell não está no prompt com a linha vazia"
+        os.write(self.fd, text.encode("utf-8"))
+        self._set_state(True, False, False)
+        return True, ""
 
     def resize(self, cols, rows):
         if self.fd is None:

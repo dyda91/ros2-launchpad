@@ -30,6 +30,7 @@ class AgentApp:
         env["LANG"] = "C.UTF-8"
         env["LC_ALL"] = "C.UTF-8"
         env["HOME"] = env.get("HOME", "/home/ubuntu")
+        env["PS1"] = "\\[\\e]1337;LaunchpadPrompt\\a\\]\\u@\\h:\\w\\$ "
         return env
 
     def _authorized(self, request):
@@ -82,6 +83,7 @@ class AgentApp:
                 "state": self.current_state(),
                 "launch_pid": self.launch.pid,
                 "odom": self.ros.latest(),
+                "mission": self.ros.latest_mission(),
                 "error": self.current_error(),
             }
         )
@@ -116,7 +118,20 @@ class AgentApp:
                     except json.JSONDecodeError:
                         continue
                     if payload.get("type") == "input":
-                        self.pty.write(str(payload.get("data", "")))
+                        self.pty.send_input(str(payload.get("data", "")))
+                    elif payload.get("type") == "insert":
+                        ok, reason = self.pty.insert(
+                            str(payload.get("data", ""))
+                        )
+                        await ws.send_str(
+                            json.dumps(
+                                {
+                                    "type": "insert_result",
+                                    "ok": ok,
+                                    "reason": reason,
+                                }
+                            )
+                        )
                     elif payload.get("type") == "resize":
                         self.pty.resize(
                             int(payload.get("cols", cols)),
@@ -143,6 +158,11 @@ class AgentApp:
                 if odom is not None:
                     await ws.send_str(
                         json.dumps({"type": "pose", **odom})
+                    )
+                mission = self.ros.latest_mission()
+                if mission is not None:
+                    await ws.send_str(
+                        json.dumps({"type": "mission", **mission})
                     )
                 await asyncio.sleep(0.1)
         finally:

@@ -5,7 +5,7 @@
 - **Etapa 1:** implementada.
 - **Etapa 2A:** implementada.
 - **Etapa 2B:** planejada.
-- **Etapa 3:** planejada.
+- **Etapa 3:** implementada.
 
 ## Estrutura do monorepo
 
@@ -16,7 +16,9 @@ ros2-launchpad/
 ├── compose.yaml
 ├── .env.example
 ├── Makefile
-├── content/world/armazem.yaml
+├── content/
+│   ├── world/armazem.yaml
+│   └── missions/primeiro-turno.yaml
 ├── lab/
 │   ├── image/Dockerfile
 │   └── ros_ws/src/
@@ -40,15 +42,19 @@ ros2-launchpad/
 │   ├── odom_probe.py
 │   ├── route_probe.py
 │   ├── stage1_acceptance.sh
-│   └── stage2a_acceptance.sh
-├── tests/e2e/                  # Playwright
+│   ├── stage2a_acceptance.sh
+│   ├── test_mission_content.py
+│   └── test_session_restart_failure.py
+├── tests/e2e/                  # Playwright 2A e 3
 ├── docs/stage1-results.md
-└── docs/stage2a-results.md
+├── docs/stage2a-results.md
+└── docs/stage3-results.md
 ```
 
 A Etapa 2A adicionou `apps/api`, `apps/runtime`, `apps/web`,
-`lab/image/agent` e `tests/e2e`. `content/missions` e a missão guiada ficam
-para a Etapa 3.
+`lab/image/agent` e `tests/e2e`. A Etapa 3 adicionou
+`content/missions/primeiro-turno.yaml`, a missão guiada, o painel de desafios
+e a inserção segura de comandos.
 
 ## Arquitetura da Etapa 1
 
@@ -279,6 +285,78 @@ dados do container com `network none`.
   `http://localhost:8080/api/health` respondeu com saúde ok.
 - `make stage1` continua passando.
 
+
+## Etapa 3 — Primeiro Turno implementada
+
+### Fluxo
+
+```text
+content/missions/primeiro-turno.yaml
+        │
+        ▼
+GET /api/mission ──► MissionPanel (conteúdo genérico, 4 desafios)
+        │
+        ├── Quiz e previsão: respostas curtas no painel
+        ├── Movimento: pose de referência + deslocamento + parada
+        └── Entrega: delivered do mission_monitor
+                              ▲
+                              │
+/odom + /launchpad/mission_status ──► launchpad_agent ──► WS telemetry
+```
+
+### Desafios e conclusão
+
+1. Tópicos: `ros2 topic list` e pergunta curta sobre `/cmd_vel` e `/odom`.
+2. Odometria: amostra de `/odom`; x/y relativos à origem de `odom`; neste
+   cenário a origem foi alinhada à origem do mapa; yaw explicado como cálculo
+   do quaternion.
+3. Movimento: previsão correta, comando de 0,2 m/s por 3 s, pose de referência
+   capturada com prompt vazio, deslocamento novo ≥ 0,15 m e parada ≤ 0,02 m/s.
+4. Entrega: comandos ajustáveis, solução opcional calibrada a partir de
+   x≈0,44, y≈0, z≈0, conclusão somente por `delivered` após 2 s parado.
+
+### Inserção segura
+
+O agente usa um marcador de prompt no bash e acompanha entrada/saída do PTY.
+O terminal reporta `prompt`, `lineEmpty` e `running`. A UI mostra prévia e
+**Copiar** sempre; **Inserir no terminal** só é habilitado quando o shell está
+no prompt vazio. Não há Ctrl+U automático; o texto é enviado sem Enter e o
+aluno pressiona Enter. Texto já digitado e comandos contínuos bloqueiam a
+inserção.
+
+### Layout
+
+- Desktop largo (> 1500 px): missão, visor e terminal em três colunas.
+- Largura intermediária: desafio acima de visor + terminal.
+- Telas estreitas: empilhamento.
+- O Playwright verifica os três arranjos por bounding boxes.
+
+### Reinício e falhas
+
+- `POST /api/session/restart` remove e recria o container/UDS; o progresso é
+  reiniciado e a nova sessão começa na pose inicial.
+- A UI ignora telemetria da geração antiga, desabilita o botão durante a
+  operação e descarta estado do painel.
+- Se a criação falhar, a API retorna erro; a UI mostra falha e permite nova
+  tentativa (`test_session_restart_failure.py` + Playwright com 503).
+- O progresso é em memória; recarregar a página reinicia o painel, avisado na
+  interface.
+
+### Conteúdo e solução
+
+O conteúdo fica em `content/missions/primeiro-turno.yaml`. A solução completa
+opcional usa três comandos de uma linha, calibrados no simulador real:
+
+```bash
+timeout 16.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.35}}"
+timeout 2.85 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: 0.8}}"
+timeout 10.0 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.35}}"
+```
+
+O Playwright passa pela zona em movimento, interrompe com Ctrl+C, confirma a
+parada de 2 s, a tela de sucesso, o gancho e o reinício com painel/pose
+restaurados.
+
 ## Testes
 
 - `make test-world`: geração determinística, limites, folga da rota, zona e
@@ -293,24 +371,28 @@ dados do container com `network none`.
 - `stage2a_acceptance.sh`: valida sessão, readiness, mapa, tópicos ROS,
   isolamento, encerramento e nova sessão na API real.
 - `tests/e2e/stage2a.spec.ts`: Playwright real com terminal, Ctrl+C, movimento,
-  Canvas, encerramento e reinício.
+  Canvas, layout responsivo, encerramento e reinício.
+- `tests/e2e/stage3.spec.ts`: quatro desafios, inserção segura, passagem em
+  movimento, entrega, reinício e falha de restart.
+- `test_mission_content.py`: schema, respostas, comandos e gancho.
+- `test_session_restart_failure.py`: limpeza antiga + falha do novo container +
+  retry.
 - O aceite usa o simulador real, não telemetria simulada.
 
-## Contratos futuros (Etapas 2B e 3)
+## Contratos futuros (Etapa 2B)
 
 - Segunda sessão simultânea e limite configurável.
 - Reconexão automática do terminal/telemetria e replay de buffer.
 - TTL de 30 min, inatividade de 10 min e limpeza automática.
-- `POST /api/session/restart` e validação da missão na Etapa 3.
 - Playwright com dois contextos e isolamento entre sessões.
 - Publicação pública com TLS e isolamento de piloto.
 
 ## Riscos e decisões pendentes
 
-- A memória do WSL é 7,7 GiB; a Etapa 2 deve medir uma e duas sessões antes de
+- A memória do WSL é 7,7 GiB; a Etapa 2B deve medir uma e duas sessões antes de
   elevar o limite. Alterar `.wslconfig` exige autorização.
-- O tempo de inicialização de 5,85–6,61 s é aceitável para o perfil local; o alvo
-  de UX da Etapa 2 será medido com o agente e a web.
+- O startup final das Etapas 1/2A ficou em 6,25–6,28 s; a missão 3 usa a mesma
+  sessão.
 - O aviso KDL do link raiz com inércia é conhecido e não afeta a simulação.
 - A sessão 2A ociosa usa ~0,74 núcleo e ~270 MiB; a Etapa 2B deve medir duas
   sessões e ajustar o passo de física se necessário.

@@ -79,6 +79,7 @@ services:
       MAX_SESSIONS: "1"
       RUN_DIR: /run/sessions
       STATIC_DIR: /app/static
+      MISSION_FILE: /app/content/missions/primeiro-turno.yaml
       READY_TIMEOUT_SECONDS: "45"
     volumes:
       - ./run/sessions:/run/sessions

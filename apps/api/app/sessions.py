@@ -36,40 +36,57 @@ class SessionManager:
 
     async def create(self, cookie_id):
         async with self._lock:
-            if self._session is not None:
-                if (
-                    self._session.session_id == cookie_id
-                    and self._session.state != "error"
-                ):
-                    return self._payload(self._session), False
-                if self._session.state != "error":
-                    return {"state": "full"}, False
-                await self.runtime.delete(self._session.session_id)
-                self._session = None
+            return await self._create_locked(cookie_id)
 
-            session_id = secrets.token_urlsafe(24)
-            agent_token = secrets.token_urlsafe(32)
-            session = Session(
-                session_id=session_id,
-                agent_token=agent_token,
-                uds_path="",
-            )
-            self._session = session
-            try:
-                created = await self.runtime.create(session_id, agent_token)
-            except RuntimeFull:
-                self._session = None
+    async def _create_locked(self, cookie_id):
+        if self._session is not None:
+            if (
+                self._session.session_id == cookie_id
+                and self._session.state != "error"
+            ):
+                return self._payload(self._session), False
+            if self._session.state != "error":
                 return {"state": "full"}, False
-            except RuntimeUnavailable as exc:
-                self._session = None
-                return {"state": "error", "error": str(exc)}, False
+            await self.runtime.delete(self._session.session_id)
+            self._session = None
 
-            session.uds_path = created["uds_path"]
-            session.stage = "waiting_odom"
-            session.wait_task = asyncio.create_task(
-                self._wait_ready(session_id)
-            )
-            return self._payload(session), True
+        session_id = secrets.token_urlsafe(24)
+        agent_token = secrets.token_urlsafe(32)
+        session = Session(
+            session_id=session_id,
+            agent_token=agent_token,
+            uds_path="",
+        )
+        self._session = session
+        try:
+            created = await self.runtime.create(session_id, agent_token)
+        except RuntimeFull:
+            self._session = None
+            return {"state": "full"}, False
+        except RuntimeUnavailable as exc:
+            self._session = None
+            return {"state": "error", "error": str(exc)}, False
+
+        session.uds_path = created["uds_path"]
+        session.stage = "waiting_odom"
+        session.wait_task = asyncio.create_task(
+            self._wait_ready(session_id)
+        )
+        return self._payload(session), True
+
+    async def restart(self, cookie_id):
+        async with self._lock:
+            session = self._session
+            if session is None or session.session_id != cookie_id:
+                return {
+                    "state": "error",
+                    "error": "sessão não encontrada para reiniciar",
+                }, False
+            if session.wait_task is not None:
+                session.wait_task.cancel()
+            await self.runtime.delete(session.session_id)
+            self._session = None
+            return await self._create_locked(None)
 
     def state(self, cookie_id):
         if self._session is None:
