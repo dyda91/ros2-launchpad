@@ -55,6 +55,12 @@ export interface ScanData {
   range_max: number;
   ranges: (number | null)[];
   stamp: number;
+  pose?: {
+    x: number;
+    y: number;
+    yaw: number;
+    stamp: number;
+  } | null;
 }
 
 export interface Pose {

@@ -32,16 +32,16 @@ function drawScene(
   const minY = floor.min[1] - wall;
   const maxY = floor.max[1] + wall;
   const padding = 28;
-  const scale = Math.min(
-    (width - padding * 2) / (maxX - minX),
-    (height - padding * 2) / (maxY - minY)
-  ) * zoom;
-  const offsetX = (width - (maxX - minX) * scale) / 2;
-  const offsetY = (height - (maxY - minY) * scale) / 2;
+  const scaleX = ((width - padding * 2) / (maxX - minX)) * zoom;
+  const scaleY = ((height - padding * 2) / (maxY - minY)) * zoom;
+  const offsetX = (width - (maxX - minX) * scaleX) / 2;
+  const offsetY = (height - (maxY - minY) * scaleY) / 2;
 
-  const screenX = (x: number) => offsetX + (x - minX) * scale;
-  const screenY = (y: number) => height - offsetY - (y - minY) * scale;
-  const screenLength = (value: number) => value * scale;
+  const screenX = (x: number) => offsetX + (x - minX) * scaleX;
+  const screenY = (y: number) => height - offsetY - (y - minY) * scaleY;
+  const screenWidth = (value: number) => value * scaleX;
+  const screenHeight = (value: number) => value * scaleY;
+  const screenLength = (value: number) => value * Math.min(scaleX, scaleY);
 
   context.fillStyle = "#080d12";
   context.fillRect(0, 0, width, height);
@@ -50,8 +50,8 @@ function drawScene(
   context.fillRect(
     screenX(floor.min[0]),
     screenY(floor.max[1]),
-    screenLength(floor.size[0]),
-    screenLength(floor.size[1])
+    screenWidth(floor.size[0]),
+    screenHeight(floor.size[1])
   );
 
   context.strokeStyle = "#3b4b5a";
@@ -74,26 +74,26 @@ function drawScene(
   context.fillRect(
     screenX(floor.min[0] - wall),
     screenY(floor.max[1] + wall),
-    screenLength(floor.size[0] + wall * 2),
-    screenLength(wall)
+    screenWidth(floor.size[0] + wall * 2),
+    screenHeight(wall)
   );
   context.fillRect(
     screenX(floor.min[0] - wall),
     screenY(floor.min[1]),
-    screenLength(floor.size[0] + wall * 2),
-    screenLength(wall)
+    screenWidth(floor.size[0] + wall * 2),
+    screenHeight(wall)
   );
   context.fillRect(
     screenX(floor.min[0] - wall),
     screenY(floor.max[1]),
-    screenLength(wall),
-    screenLength(floor.size[1])
+    screenWidth(wall),
+    screenHeight(floor.size[1])
   );
   context.fillRect(
     screenX(floor.max[0]),
     screenY(floor.max[1]),
-    screenLength(wall),
-    screenLength(floor.size[1])
+    screenWidth(wall),
+    screenHeight(floor.size[1])
   );
 
   const zone = map.zone;
@@ -103,14 +103,14 @@ function drawScene(
   context.fillRect(
     screenX(zone.bounds.min[0]),
     screenY(zone.bounds.max[1]),
-    screenLength(zone.size[0]),
-    screenLength(zone.size[1])
+    screenWidth(zone.size[0]),
+    screenHeight(zone.size[1])
   );
   context.strokeRect(
     screenX(zone.bounds.min[0]),
     screenY(zone.bounds.max[1]),
-    screenLength(zone.size[0]),
-    screenLength(zone.size[1])
+    screenWidth(zone.size[0]),
+    screenHeight(zone.size[1])
   );
 
   for (const obstacle of map.obstacles) {
@@ -124,8 +124,8 @@ function drawScene(
       context.roundRect(
         screenX(x - sizeX / 2),
         screenY(y + sizeY / 2),
-        screenLength(sizeX),
-        screenLength(sizeY),
+        screenWidth(sizeX),
+        screenHeight(sizeY),
         4
       );
       context.fill();
@@ -150,6 +150,7 @@ function drawScene(
   context.fillText(zone.id, screenX(zone.bounds.min[0]) + 6, screenY(zone.bounds.max[1]) + 18);
 
   if (showLidar && scan !== null && pose !== null) {
+    const scanPose = scan.pose ?? pose;
     context.fillStyle = "rgba(96, 165, 250, 0.9)";
     for (let index = 0; index < scan.ranges.length; index += 1) {
       const range = scan.ranges[index];
@@ -157,8 +158,8 @@ function drawScene(
         continue;
       }
       const angle = scan.angle_min + index * scan.angle_increment;
-      const worldX = pose.x + range * Math.cos(pose.yaw + angle);
-      const worldY = pose.y + range * Math.sin(pose.yaw + angle);
+      const worldX = scanPose.x + range * Math.cos(scanPose.yaw + angle);
+      const worldY = scanPose.y + range * Math.sin(scanPose.yaw + angle);
       context.beginPath();
       context.arc(
         screenX(worldX),

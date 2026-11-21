@@ -755,6 +755,11 @@ export default function App() {
                   data-yaw={pose?.yaw ?? 0}
                   data-speed={speed}
                   data-scan-points={scanPoints}
+                  data-scan-stamp={scan?.stamp ?? 0}
+                  data-scan-pose-x={scan?.pose?.x ?? pose?.x ?? 0}
+                  data-scan-pose-y={scan?.pose?.y ?? pose?.y ?? 0}
+                  data-scan-pose-yaw={scan?.pose?.yaw ?? pose?.yaw ?? 0}
+                  data-scan-pose-stamp={scan?.pose?.stamp ?? 0}
                   data-zoom={zoom}
                 >
                   <WarehouseCanvas
@@ -788,13 +793,7 @@ export default function App() {
               <span>
                 v <strong>{speed.toFixed(2)} m/s</strong>
               </span>
-            </div>
-            <div className="instructions">
-              O visor usa a pose real de <code>/odom</code>. A missão ao lado
-              conduz cada ação; o terminal permanece disponível para suas
-              próprias explorações.
-            </div>
-          </section>
+            </div>          </section>
 
           <section className="panel terminal-panel">
             <div className="panel-header">

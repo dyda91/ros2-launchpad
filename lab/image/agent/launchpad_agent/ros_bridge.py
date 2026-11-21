@@ -1,6 +1,7 @@
 import json
 import math
 import threading
+from collections import deque
 
 import rclpy
 from nav_msgs.msg import Odometry
@@ -22,6 +23,7 @@ class RosBridge:
         self._latest = None
         self._mission = None
         self._scan = None
+        self._poses = deque(maxlen=400)
         self._ready = threading.Event()
         self._closed = False
         self._node = None
@@ -78,6 +80,7 @@ class RosBridge:
         }
         with self._lock:
             self._latest = payload
+            self._poses.append(dict(payload))
         self._ready.set()
 
     def _on_mission(self, message):
@@ -101,24 +104,40 @@ class RosBridge:
         with self._lock:
             return dict(self._mission) if self._mission is not None else None
 
+    def _nearest_pose(self, stamp):
+        if not self._poses:
+            return None
+        nearest = min(
+            self._poses,
+            key=lambda item: abs(item["stamp"] - stamp),
+        )
+        return {
+            "x": nearest["x"],
+            "y": nearest["y"],
+            "yaw": nearest["yaw"],
+            "stamp": nearest["stamp"],
+        }
+
     def _on_scan(self, message):
         ranges = [
             round(value, 4) if math.isfinite(value) else None
             for value in message.ranges
         ]
-        payload = {
-            "frame_id": message.header.frame_id,
-            "angle_min": message.angle_min,
-            "angle_increment": message.angle_increment,
-            "range_min": message.range_min,
-            "range_max": message.range_max,
-            "ranges": ranges,
-            "stamp": (
-                message.header.stamp.sec
-                + message.header.stamp.nanosec / 1_000_000_000.0
-            ),
-        }
+        stamp = (
+            message.header.stamp.sec
+            + message.header.stamp.nanosec / 1_000_000_000.0
+        )
         with self._lock:
+            payload = {
+                "frame_id": message.header.frame_id,
+                "angle_min": message.angle_min,
+                "angle_increment": message.angle_increment,
+                "range_min": message.range_min,
+                "range_max": message.range_max,
+                "ranges": ranges,
+                "stamp": stamp,
+                "pose": self._nearest_pose(stamp),
+            }
             self._scan = payload
 
     def latest_scan(self):

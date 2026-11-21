@@ -162,6 +162,13 @@ test("Primeiro Turno: seis módulos, zona e reinício", async ({
       { timeout: 15_000 }
     )
     .toBeGreaterThan(20);
+  const scanStamp = Number(
+    await page.getByTestId("robot-pose").getAttribute("data-scan-stamp")
+  );
+  const scanPoseStamp = Number(
+    await page.getByTestId("robot-pose").getAttribute("data-scan-pose-stamp")
+  );
+  expect(Math.abs(scanPoseStamp - scanStamp)).toBeLessThan(1);
   const lidarToggle = page.getByTestId("lidar-toggle");
   await expect(lidarToggle).toHaveAttribute("data-enabled", "true");
   await lidarToggle.click();

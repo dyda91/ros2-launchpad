@@ -20,8 +20,8 @@ de uma rodada de regressão que use `sessions-clean`.
 Build verificado nesta rodada:
 
 ```text
-assets/index-CQpZ1PgS.js
-assets/index-DARrsoy3.css
+assets/index-CMvykhyO.js
+assets/index-0EX-Ykap.css
 ```
 
 O mesmo hash apareceu no `curl` da página e em `/app/static/assets` da API.
@@ -111,6 +111,14 @@ imediatamente abaixo do visor. O visor tem legenda de parede/obstáculo/zona/
 LiDAR, zoom de 1,00x a 3,00x e botão **Centralizar**. A orientação do robô é
 desenhada a partir de `pose.yaw`.
 
+O layout ocupa a altura da janela e reserva uma faixa mais baixa e larga para
+o mapa; o terminal fica visível sem rolar a página. Em 1280x800, o teste mede
+o retângulo do terminal dentro da janela e exige
+`scrollHeight - innerHeight <= 1`. O Canvas usa escalas independentes em X e
+Y: o mapa preenche a faixa esticada, em vez de manter uma área quadrada que
+empurra o terminal para fora da tela. Em telas estreitas, a página volta a
+rolar e os painéis empilham.
+
 ## LiDAR
 
 Foi adicionado um sensor `gpu_lidar` de 360 amostras, 10 Hz, alcance
@@ -118,9 +126,14 @@ Foi adicionado um sensor `gpu_lidar` de 360 amostras, 10 Hz, alcance
 GPU dedicada; o `/scan` é publicado como `sensor_msgs/msg/LaserScan`.
 
 O agente assina `/scan`, envia a leitura pela telemetria e o Canvas desenha
-os pontos transformados pela pose de `/odom`. A camada LiDAR pode ser ligada
-e desligada. O teste verifica mais de 20 pontos, o toggle e a presença do
-tópico real.
+os pontos transformados pela pose de `/odom` **no instante da leitura**. O
+agente guarda um histórico curto de poses e anexa ao scan a pose de `/odom`
+mais próxima do `header.stamp`; o Canvas usa essa pose, não a pose mais
+recente da tela. Antes, a nuvem capturada antes de uma curva era desenhada
+com o yaw novo, girando os pontos e criando uma parede aparente à frente.
+A camada LiDAR pode ser ligada e desligada. O teste verifica mais de 20
+pontos, o toggle, a presença do tópico real e a diferença máxima de 1 s entre
+o stamp do scan e o stamp da pose usada.
 
 O módulo de LiDAR usa uma leitura real de `/scan`, pergunta o efeito de se
 aproximar de uma parede e pede que o aluno use os pontos para escolher um
@@ -158,7 +171,8 @@ de sensores em software; a GPU não foi necessária.
 | `make test-pilot` | **5/5 OK** |
 | `pilot-acceptance` | **OK** |
 | LiDAR `/scan` | tipo, publisher e leituras reais OK |
-| Canvas LiDAR | pontos >20 e toggle OK |
+| Canvas LiDAR | pontos >20, toggle e pose temporal OK |
+| Layout 1280x800 | terminal dentro da janela, sem rolagem vertical |
 
 ## Exemplos e comandos verificados
 
@@ -203,7 +217,7 @@ por Ctrl+C.
 ```bash
 make up
 make e2e-4a        # Tab, foco, condução, Ctrl+C e atalho de saída
-make e2e           # 2A, layout, curso de seis módulos e reinício
+make e2e           # 2A, layout sem rolagem, curso e reinício
 make test-mission  # schema e conteúdo dos seis módulos
 make stage2b       # duas sessões, reconexão, TTL e lotação
 make measure-2b    # startup, CPU e RAM com duas sessões

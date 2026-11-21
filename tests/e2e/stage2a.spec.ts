@@ -51,6 +51,14 @@ test("Etapa 2A: terminal real, visor e ciclo da sessão", async ({ page }) => {
   expect(narrowTerminal).not.toBeNull();
   expect(narrowMission!.y).toBeLessThan(narrowViewport!.y);
   expect(narrowViewport!.y).toBeLessThan(narrowTerminal!.y);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const terminalBox = await page.getByTestId("terminal").boundingBox();
+  expect(terminalBox).not.toBeNull();
+  expect(terminalBox!.y + terminalBox!.height).toBeLessThanOrEqual(801);
+  const verticalOverflow = await page.evaluate(
+    () => document.documentElement.scrollHeight - window.innerHeight
+  );
+  expect(verticalOverflow).toBeLessThanOrEqual(1);
   await page.setViewportSize({ width: 1280, height: 900 });
 
   const canvasBytes = await page
