@@ -24,6 +24,7 @@ RUN apt-get update \
         python3-aiohttp=3.9.1-1build1 \
         python3-colcon-common-extensions \
         python3-yaml \
+        bash-completion \
         ca-certificates \
         curl \
         iproute2 \
@@ -35,6 +36,7 @@ RUN mkdir -p /home/ubuntu/.ros \
 
 WORKDIR /ros_ws
 COPY lab/image/agent /opt/launchpad_agent
+COPY lab/image/launchpad.bashrc /etc/launchpad.bashrc
 COPY lab/ros_ws/src /ros_ws/src
 COPY content/world/armazem.yaml /ros_ws/src/launchpad_sim/config/armazem.yaml
 

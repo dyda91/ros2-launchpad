@@ -18,7 +18,7 @@ SESSION_WARNING_SECONDS ?= 120
 SESSION_MONITOR_SECONDS ?= 2
 SESSION_ROS_DOMAIN_ID ?= 42
 
-.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
+.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 e2e-4a stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
 
 help:
 	@printf '%s\n' \
@@ -34,6 +34,7 @@ help:
 		'down        para aplicação e remove a sessão' \
 		'session-down força a remoção da sessão' \
 		'e2e         executa Playwright contra a aplicação local' \
+		'e2e-4a      executa a regressão de condução repetida da 4A' \
 		'test-mission valida o conteúdo da missão' \
 		'test-api    testa falha/retry do restart da sessão' \
 		'stage2a     executa o aceite completo da Etapa 2A' \
@@ -132,6 +133,10 @@ e2e-2a: up e2e-image stage2a-clean
 e2e-3: up e2e-image stage2a-clean
 	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) npx playwright test stage3.spec.ts
 
+e2e-4a: up e2e-image stage2a-clean
+	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) \
+		npx playwright test stage4-driving.spec.ts
+
 stage2a-clean:
 	$(MAKE) sessions-clean
 	$(COMPOSE) restart runtime api >/dev/null
@@ -152,10 +157,11 @@ stage2a: stage1
 stage2b: stage1
 	$(COMPOSE) stop lab
 	$(MAKE) sessions-clean
-	$(MAKE) up MAX_SESSIONS=2 SESSION_TTL_SECONDS=90 \
-		SESSION_IDLE_SECONDS=15 SESSION_WARNING_SECONDS=5 \
+	$(MAKE) up MAX_SESSIONS=2 SESSION_TTL_SECONDS=120 \
+		SESSION_IDLE_SECONDS=45 SESSION_WARNING_SECONDS=5 \
 		SESSION_MONITOR_SECONDS=1
-	bash tests/integration/stage2b_acceptance.sh
+	SESSION_IDLE_SECONDS=45 SESSION_WARNING_SECONDS=5 \
+		bash tests/integration/stage2b_acceptance.sh
 	$(MAKE) e2e-2b
 
 e2e-2b: e2e-image

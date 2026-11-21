@@ -105,11 +105,11 @@ test("duas sessões, terceira cheia, progresso, reload e reconexão", async ({
     await pageA.getByTestId("next-step").click();
     await expect(pageA.getByTestId("mission-step")).toHaveAttribute(
       "data-step",
-      "odometria"
+      "comunicacao"
     );
     await expect(pageB.getByTestId("mission-step")).toHaveAttribute(
       "data-step",
-      "topicos"
+      "terminal"
     );
     await touch(pageB);
 
@@ -130,7 +130,7 @@ test("duas sessões, terceira cheia, progresso, reload e reconexão", async ({
     expect(await sessionTag(pageA)).toBe(tagA);
     await expect(pageA.getByTestId("mission-step")).toHaveAttribute(
       "data-step",
-      "odometria",
+      "comunicacao",
       { timeout: 20_000 }
     );
     await expect(terminalA).toContainText(marker, { timeout: 20_000 });
@@ -169,7 +169,7 @@ test("duas sessões, terceira cheia, progresso, reload e reconexão", async ({
     expect(await sessionTag(pageA)).toBe(tagA);
     await expect(pageA.getByTestId("mission-step")).toHaveAttribute(
       "data-step",
-      "topicos"
+      "terminal"
     );
     await expect
       .poll(
@@ -203,10 +203,10 @@ test("inatividade avisa, expira, libera a vaga e permite nova sessão", async ({
   await startPage(page);
   const oldTag = await sessionTag(page);
   await expect(page.getByTestId("lifecycle-warning")).toBeVisible({
-    timeout: 25_000
+    timeout: 70_000
   });
   await expect(page.getByTestId("expired-start-button")).toBeVisible({
-    timeout: 25_000
+    timeout: 70_000
   });
   const health = (await (
     await page.request.get("/api/health")

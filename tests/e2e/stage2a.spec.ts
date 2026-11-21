@@ -28,7 +28,8 @@ test("Etapa 2A: terminal real, visor e ciclo da sessão", async ({ page }) => {
   expect(wideViewport).not.toBeNull();
   expect(wideTerminal).not.toBeNull();
   expect(wideMission!.x).toBeLessThan(wideViewport!.x);
-  expect(wideViewport!.x).toBeLessThan(wideTerminal!.x);
+  expect(Math.abs(wideViewport!.x - wideTerminal!.x)).toBeLessThan(12);
+  expect(wideViewport!.y).toBeLessThan(wideTerminal!.y);
 
   await page.setViewportSize({ width: 1280, height: 900 });
   const mediumMission = await page.getByTestId("mission-panel").boundingBox();
@@ -37,8 +38,9 @@ test("Etapa 2A: terminal real, visor e ciclo da sessão", async ({ page }) => {
   expect(mediumMission).not.toBeNull();
   expect(mediumViewport).not.toBeNull();
   expect(mediumTerminal).not.toBeNull();
-  expect(mediumMission!.y).toBeLessThan(mediumViewport!.y);
-  expect(Math.abs(mediumViewport!.y - mediumTerminal!.y)).toBeLessThan(12);
+  expect(mediumMission!.x).toBeLessThan(mediumViewport!.x);
+  expect(Math.abs(mediumViewport!.x - mediumTerminal!.x)).toBeLessThan(12);
+  expect(mediumViewport!.y).toBeLessThan(mediumTerminal!.y);
 
   await page.setViewportSize({ width: 800, height: 900 });
   const narrowMission = await page.getByTestId("mission-panel").boundingBox();
@@ -55,6 +57,17 @@ test("Etapa 2A: terminal real, visor e ciclo da sessão", async ({ page }) => {
     .locator("canvas.warehouse-canvas")
     .evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL().length);
   expect(canvasBytes).toBeGreaterThan(2000);
+  await expect(page.locator(".map-legend")).toBeVisible();
+  await page.getByTestId("zoom-in").click();
+  await expect(page.getByTestId("robot-pose")).toHaveAttribute(
+    "data-zoom",
+    "1.25"
+  );
+  await page.getByTestId("recenter").click();
+  await expect(page.getByTestId("robot-pose")).toHaveAttribute(
+    "data-zoom",
+    "1"
+  );
 
   const terminal = page.locator(".xterm-rows");
   await page.locator(".xterm").click();

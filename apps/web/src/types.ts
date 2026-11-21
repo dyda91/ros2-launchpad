@@ -1,3 +1,7 @@
+export interface CourseExample {
+  command: string;
+}
+
 export type SessionPhase =
   | "idle"
   | "preparing"
@@ -41,6 +45,16 @@ export interface MissionProgress {
   solutionVisible: boolean;
   motionStart: { x: number; y: number; yaw: number } | null;
   motionDone: boolean;
+}
+
+export interface ScanData {
+  frame_id: string;
+  angle_min: number;
+  angle_increment: number;
+  range_min: number;
+  range_max: number;
+  ranges: (number | null)[];
+  stamp: number;
 }
 
 export interface Pose {
@@ -114,7 +128,10 @@ export interface MissionStep {
   kind: "quiz" | "motion" | "delivery";
   title: string;
   concept: string;
+  why?: string;
   action: string;
+  exercise?: string;
+  example?: string[];
   observe?: string;
   insertCommand?: string;
   hints: string[];

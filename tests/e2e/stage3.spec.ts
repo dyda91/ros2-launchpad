@@ -60,7 +60,7 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-test("Primeiro Turno: quatro desafios, zona e reinício", async ({
+test("Primeiro Turno: seis módulos, zona e reinício", async ({
   page,
   request
 }) => {
@@ -95,25 +95,36 @@ test("Primeiro Turno: quatro desafios, zona e reinício", async ({
   await expect(insertButton).toBeEnabled({ timeout: 10_000 });
 
   await insertAndRun(page, stepOnePreview);
-  await expect(terminal).toContainText("/cmd_vel", { timeout: 10_000 });
-  await expect(terminal).toContainText("/odom", { timeout: 10_000 });
+  await expect(terminal).toContainText("/ros_ws", { timeout: 10_000 });
   await answerQuestion(page, "quiz-option", quiz[0].question!.answerIndex);
   await expect(page.getByTestId("next-step")).toBeVisible();
   await page.getByTestId("next-step").click();
 
   await expect(page.getByTestId("mission-step")).toHaveAttribute(
     "data-step",
-    "odometria"
+    "comunicacao"
   );
   const stepTwoPreview = page.getByTestId("command-preview");
   await insertAndRun(page, stepTwoPreview);
+  await expect(terminal).toContainText("/cmd_vel", { timeout: 10_000 });
+  await expect(terminal).toContainText("/odom", { timeout: 10_000 });
   await page.waitForTimeout(500);
   await answerQuestion(page, "quiz-option", quiz[1].question!.answerIndex);
   await page.getByTestId("next-step").click();
 
   await expect(page.getByTestId("mission-step")).toHaveAttribute(
     "data-step",
-    "primeiro-movimento"
+    "odometria"
+  );
+  const stepThreePreview = page.getByTestId("command-preview");
+  await insertAndRun(page, stepThreePreview);
+  await page.waitForTimeout(500);
+  await answerQuestion(page, "quiz-option", quiz[2].question!.answerIndex);
+  await page.getByTestId("next-step").click();
+
+  await expect(page.getByTestId("mission-step")).toHaveAttribute(
+    "data-step",
+    "conducao"
   );
   await answerQuestion(
     page,
@@ -130,8 +141,34 @@ test("Primeiro Turno: quatro desafios, zona e reinício", async ({
     timeout: 20_000
   });
   await expect(page.getByTestId("next-step")).toContainText(
-    "Ir para a entrega"
+    "Próximo módulo"
   );
+  await page.getByTestId("next-step").click();
+
+  await expect(page.getByTestId("mission-step")).toHaveAttribute(
+    "data-step",
+    "lidar"
+  );
+  const stepLidarPreview = page.getByTestId("command-preview");
+  await insertAndRun(page, stepLidarPreview);
+  await expect
+    .poll(
+      async () =>
+        Number(
+          await page
+            .getByTestId("robot-pose")
+            .getAttribute("data-scan-points")
+        ),
+      { timeout: 15_000 }
+    )
+    .toBeGreaterThan(20);
+  const lidarToggle = page.getByTestId("lidar-toggle");
+  await expect(lidarToggle).toHaveAttribute("data-enabled", "true");
+  await lidarToggle.click();
+  await expect(lidarToggle).toHaveAttribute("data-enabled", "false");
+  await lidarToggle.click();
+  await expect(lidarToggle).toHaveAttribute("data-enabled", "true");
+  await answerQuestion(page, "quiz-option", quiz[3].question!.answerIndex);
   await page.getByTestId("next-step").click();
 
   await expect(page.getByTestId("mission-step")).toHaveAttribute(
@@ -182,10 +219,56 @@ test("Primeiro Turno: quatro desafios, zona e reinício", async ({
     mission.success.hook
   );
 
+  const pose = page.getByTestId("robot-pose");
+  const beforeSuccessDrive = {
+    x: Number(await pose.getAttribute("data-x")),
+    y: Number(await pose.getAttribute("data-y")),
+    yaw: Number(await pose.getAttribute("data-yaw"))
+  };
+  const terminalStateAfterSuccess = page.getByTestId("terminal-state");
+  await expect(terminalStateAfterSuccess).toHaveAttribute(
+    "data-prompt",
+    "true",
+    { timeout: 15_000 }
+  );
+  await expect(terminalStateAfterSuccess).toHaveAttribute(
+    "data-running",
+    "false"
+  );
+  await page.getByTestId("focus-terminal").click();
+  await page.keyboard.type(
+    'timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"'
+  );
+  await page.keyboard.press("Enter");
+  await expect(terminalStateAfterSuccess).toHaveAttribute(
+    "data-running",
+    "true",
+    { timeout: 10_000 }
+  );
+  await expect
+    .poll(
+      async () => {
+        const x = Number(await pose.getAttribute("data-x"));
+        const y = Number(await pose.getAttribute("data-y"));
+        const dx = x - beforeSuccessDrive.x;
+        const dy = y - beforeSuccessDrive.y;
+        return dx * Math.cos(beforeSuccessDrive.yaw) +
+          dy * Math.sin(beforeSuccessDrive.yaw);
+      },
+      { timeout: 15_000 }
+    )
+    .toBeGreaterThan(0.03);
+  await expect
+    .poll(
+      async () => Number(await pose.getAttribute("data-speed")),
+      { timeout: 10_000 }
+    )
+    .toBeLessThan(0.02);
+
   await page.getByTestId("restart-button").click();
   await expect(page.getByTestId("mission-step")).toHaveAttribute(
     "data-step",
-    "topicos",
+    "terminal",
     { timeout: 60_000 }
   );
   await expect(page.getByTestId("session-state")).toHaveAttribute(

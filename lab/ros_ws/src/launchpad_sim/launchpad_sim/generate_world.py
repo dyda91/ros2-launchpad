@@ -332,12 +332,15 @@ def build_world(config):
     for plugin_name, filename in (
         ("Physics", "gz-sim-physics-system"),
         ("UserCommands", "gz-sim-user-commands-system"),
+        ("Sensors", "gz-sim-sensors-system"),
     ):
-        ET.SubElement(
+        plugin = ET.SubElement(
             world,
             "plugin",
             {"filename": filename, "name": f"gz::sim::systems::{plugin_name}"},
         )
+        if plugin_name == "Sensors":
+            add_text(plugin, "render_engine", "ogre2")
 
     floor_cfg = config["warehouse"]["floor"]
     min_x, min_y = floor_cfg["min"]

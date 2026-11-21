@@ -56,8 +56,9 @@ e os templates de piloto estão em `docs/pilot-runbook.md`.
   anterior são encerradas, containers órfãos com label são removidos e as
   vagas são liberadas. Não há recuperação de sessão após reiniciar a API ou o
   runtime.
-- **Aceite acelerado:** `make stage2b` usa 90 s de TTL, 15 s de inatividade,
-  5 s de aviso e monitor de 1 s. O padrão local continua 1800/600/120 s.
+- **Aceite acelerado:** após o LiDAR/curso v2, `make stage2b` usa 120 s de
+  TTL, 45 s de inatividade, 5 s de aviso e monitor de 1 s para dar margem ao
+  startup maior. O padrão local continua 1800/600/120 s.
 
 ## Contratos adicionados
 

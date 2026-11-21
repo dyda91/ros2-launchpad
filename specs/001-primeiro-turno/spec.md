@@ -11,6 +11,9 @@
   eventos de missão): implementado em 2026-11-21.
 - **Piloto público** (DNS/TLS reais, rootless validado, teste no host,
   autenticação de convidados e isolamento reforçado): pendente.
+- **Etapa 4A–4D:** foco/Tab, condução repetida, curso v2 em seis módulos,
+  layout de duas colunas e LiDAR headless implementados localmente.
+- **Etapa 4E:** teste com iniciante e host externo pendente.
 
 ## Produto
 
@@ -39,8 +42,10 @@ Incluído: um robô diferencial, um armazém, uma missão, simulação headless,
 interfaces ROS 2 reais, sessão anônima temporária, terminal, visor 2D,
 reinício, expiração e isolamento por sessão.
 
-Fora de escopo nesta entrega: cadastro, curso completo, múltiplas missões,
-LiDAR, SLAM, Nav2, visor 3D, publicação, GPU, WSLg, X11, RViz e GUI do Gazebo.
+Fora de escopo nesta entrega atual: cadastro, curso completo, múltiplas
+missões, SLAM, Nav2, visor 3D, publicação, GPU, WSLg, X11, RViz e GUI do
+Gazebo. O curso v2, o LiDAR e os obstáculos foram implementados localmente nas
+Etapas 4B–4D; o teste com iniciante/host externo (4E) permanece pendente.
 
 ## Requisitos funcionais
 
@@ -268,7 +273,7 @@ executados quando o host e o domínio estiverem disponíveis.
 
 ### Critérios de aceite executados
 
-- Um iniciante percorre os quatro desafios pela interface, com ação,
+- Na Etapa 3, um iniciante percorria os quatro desafios; a Etapa 4 expandiu a trilha para seis módulos pela interface, com ação,
   observação e dicas graduais.
 - Passar pela zona em movimento **não** conclui: o teste verifica
   `in_zone=true`, `delivered=false` e velocidade acima do limite.

@@ -5,6 +5,7 @@ import threading
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 
 
@@ -20,6 +21,7 @@ class RosBridge:
         self._lock = threading.Lock()
         self._latest = None
         self._mission = None
+        self._scan = None
         self._ready = threading.Event()
         self._closed = False
         self._node = None
@@ -33,6 +35,7 @@ class RosBridge:
             self._on_mission,
             10,
         )
+        self._node.create_subscription(LaserScan, "/scan", self._on_scan, 10)
         self._thread = threading.Thread(
             target=self._spin,
             name="launchpad-ros-bridge",
@@ -97,6 +100,30 @@ class RosBridge:
     def latest_mission(self):
         with self._lock:
             return dict(self._mission) if self._mission is not None else None
+
+    def _on_scan(self, message):
+        ranges = [
+            round(value, 4) if math.isfinite(value) else None
+            for value in message.ranges
+        ]
+        payload = {
+            "frame_id": message.header.frame_id,
+            "angle_min": message.angle_min,
+            "angle_increment": message.angle_increment,
+            "range_min": message.range_min,
+            "range_max": message.range_max,
+            "ranges": ranges,
+            "stamp": (
+                message.header.stamp.sec
+                + message.header.stamp.nanosec / 1_000_000_000.0
+            ),
+        }
+        with self._lock:
+            self._scan = payload
+
+    def latest_scan(self):
+        with self._lock:
+            return dict(self._scan) if self._scan is not None else None
 
     def close(self):
         if self._closed:

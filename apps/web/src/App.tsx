@@ -22,6 +22,7 @@ import type {
   MissionProgress,
   MissionStatus,
   Pose,
+  ScanData,
   SessionStatus,
   TerminalState
 } from "./types";
@@ -80,6 +81,9 @@ export default function App() {
   const [mission, setMission] = useState<MissionContent | null>(null);
   const [missionStatus, setMissionStatus] = useState<MissionStatus | null>(null);
   const [pose, setPose] = useState<Pose | null>(null);
+  const [scan, setScan] = useState<ScanData | null>(null);
+  const [showLidar, setShowLidar] = useState(true);
+  const [zoom, setZoom] = useState(1);
   const [terminalState, setTerminalState] = useState<TerminalState | null>(null);
   const [insertNotice, setInsertNotice] = useState("");
   const [notice, setNotice] = useState("");
@@ -256,6 +260,9 @@ export default function App() {
               setMissionStatus(status);
             }
           }
+          if (message.type === "scan") {
+            setScan(message as unknown as ScanData);
+          }
           if (message.type === "lifecycle") {
             applyLifecycle(message);
           }
@@ -336,7 +343,34 @@ export default function App() {
   function handleInsert(command: string) {
     setInsertNotice("");
     terminalRef.current?.insert(command);
+    terminalRef.current?.focus();
   }
+
+  function handleInterrupt() {
+    terminalRef.current?.interrupt();
+  }
+
+  function focusCourse() {
+    terminalRef.current?.blur();
+    document
+      .querySelector<HTMLElement>('[data-testid="mission-panel"]')
+      ?.focus();
+  }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.ctrlKey &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "e"
+      ) {
+        event.preventDefault();
+        focusCourse();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   async function handleStart() {
     generationRef.current += 1;
@@ -375,6 +409,7 @@ export default function App() {
     setSession({ state: "preparing", stage: "restarting" });
     setMap(null);
     setPose(null);
+    setScan(null);
     setMissionStatus(null);
     setTerminalState(null);
     setInsertNotice("");
@@ -430,6 +465,10 @@ export default function App() {
   }
 
   const speed = Math.abs(pose?.vx ?? 0);
+  const scanPoints =
+    scan?.ranges.filter(
+      (value) => value !== null && value > scan.range_min
+    ).length ?? 0;
   const stage = session.stage ? stageLabels[session.stage] ?? session.stage : "";
 
   return (
@@ -613,7 +652,10 @@ export default function App() {
       ) : null}
 
       {session.state === "ready" ? (
-        <main className="workspace mission-workspace">
+        <main
+          className="workspace mission-workspace"
+          onClick={() => terminalRef.current?.focus()}
+        >
           {mission !== null ? (
             <MissionPanel
               mission={mission}
@@ -658,13 +700,50 @@ export default function App() {
                   )} s.`}
             </div>
           ) : null}
+          <div className="right-stack">
           <section className="panel viewport-panel">
             <div className="panel-header">
               <div>
                 <p className="eyebrow">Visor 2D</p>
                 <h2>Armazém</h2>
               </div>
-              <span className="panel-note">referencial odom</span>
+              <div className="viewport-actions">
+                <button
+                  className="button button-secondary button-small"
+                  onClick={() => setZoom((value) => Math.max(1, value - 0.25))}
+                  data-testid="zoom-out"
+                  aria-label="Diminuir zoom"
+                >
+                  −
+                </button>
+                <span className="zoom-value" data-testid="zoom-value">
+                  {zoom.toFixed(2)}x
+                </span>
+                <button
+                  className="button button-secondary button-small"
+                  onClick={() => setZoom((value) => Math.min(3, value + 0.25))}
+                  data-testid="zoom-in"
+                  aria-label="Aumentar zoom"
+                >
+                  +
+                </button>
+                <button
+                  className="button button-secondary button-small"
+                  onClick={() => setZoom(1)}
+                  data-testid="recenter"
+                >
+                  Centralizar
+                </button>
+                <button
+                  className={`button button-small ${showLidar ? "button-secondary" : "button-ghost"}`}
+                  onClick={() => setShowLidar((visible) => !visible)}
+                  data-testid="lidar-toggle"
+                  data-enabled={showLidar}
+                >
+                  LiDAR {showLidar ? "ligado" : "desligado"}
+                </button>
+                <span className="panel-note">referencial odom</span>
+              </div>
             </div>
             <div className="viewport">
               {map !== null ? (
@@ -675,12 +754,26 @@ export default function App() {
                   data-y={pose?.y ?? 0}
                   data-yaw={pose?.yaw ?? 0}
                   data-speed={speed}
+                  data-scan-points={scanPoints}
+                  data-zoom={zoom}
                 >
-                  <WarehouseCanvas map={map} pose={pose} />
+                  <WarehouseCanvas
+                    map={map}
+                    pose={pose}
+                    scan={scan}
+                    showLidar={showLidar}
+                    zoom={zoom}
+                  />
                 </div>
               ) : (
                 <div className="viewport-loading">Carregando o mapa...</div>
               )}
+            </div>
+            <div className="map-legend">
+              <span><i className="legend-wall" />parede</span>
+              <span><i className="legend-obstacle" />obstáculo</span>
+              <span><i className="legend-zone" />zona</span>
+              <span><i className="legend-lidar" />LiDAR</span>
             </div>
             <div className="telemetry">
               <span>
@@ -709,9 +802,41 @@ export default function App() {
                 <p className="eyebrow">Shell Linux</p>
                 <h2>Terminal</h2>
               </div>
-              <span className="panel-note">ROS 2 Jazzy</span>
+              <div className="terminal-actions">
+                <span
+                  className="terminal-status"
+                  data-testid="terminal-status"
+                  data-running={terminalState?.running ?? false}
+                >
+                  {terminalState === null
+                    ? "Conectando"
+                    : terminalState.running
+                      ? "Comando em execução"
+                      : "Pronto para digitar"}
+                </span>
+                <button
+                  className="button button-secondary button-small"
+                  onClick={() => terminalRef.current?.focus()}
+                  data-testid="focus-terminal"
+                >
+                  Focar terminal
+                </button>
+                <button
+                  className="button button-secondary button-small"
+                  onClick={handleInterrupt}
+                  data-testid="interrupt-button"
+                >
+                  Ctrl+C
+                </button>
+              </div>
             </div>
-            <div className="terminal-wrap">
+            <div
+              className="terminal-wrap"
+              data-testid="terminal-state"
+              data-prompt={terminalState?.prompt ?? false}
+              data-line-empty={terminalState?.lineEmpty ?? false}
+              data-running={terminalState?.running ?? false}
+            >
               <Terminal
                 ref={terminalRef}
                 wsPath="/ws/terminal"
@@ -719,7 +844,35 @@ export default function App() {
                 onInsertResult={handleInsertResult}
               />
             </div>
+            <p className="terminal-help">
+              Tab completa caminhos e comandos; em prefixo ambíguo, Tab
+              novamente lista as opções. Use Ctrl+C para interromper e
+              Ctrl+Shift+E para sair do terminal e focar a aula.
+            </p>
+            <details className="free-drive-help" data-testid="free-drive-help">
+              <summary>Condução livre: comandos</summary>
+              <p>
+                Para manter o robô andando, use o comando sem <code>timeout</code>
+                e interrompa com Ctrl+C. Para um tempo maior, troque 10 pelo
+                número de segundos desejado.
+              </p>
+              <pre>{`# andar por 10 segundos
+timeout 10 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
+
+# girar à esquerda
+timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: 0.8}}"
+
+# girar à direita
+timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: -0.8}}"
+
+# recuar
+timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: -0.15}}"
+
+# movimento contínuo; pare com Ctrl+C
+ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"`}</pre>
+            </details>
           </section>
+          </div>
         </main>
       ) : null}
     </div>

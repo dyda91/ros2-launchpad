@@ -38,11 +38,8 @@ class PtySession:
                     [
                         "bash",
                         "-lc",
-                        "source /opt/ros/jazzy/setup.bash; "
-                        "source /ros_ws/install/setup.bash; "
-                        "PS1='\\[\\e]1337;LaunchpadPrompt\\a\\]"
-                        "\\u@\\h:\\w\\$ '; export PS1; "
-                        "exec bash --noprofile --norc -i",
+                        "exec bash --noprofile "
+                        "--rcfile /etc/launchpad.bashrc -i",
                     ],
                     self.env,
                 )

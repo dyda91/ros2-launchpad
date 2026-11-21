@@ -183,3 +183,19 @@ layout 1600 / 1280 / 800 px          três colunas / desafio acima / empilhado
 - A solução completa da missão é opcional e calibrada para a pose após o
   desafio 3.
 - O aviso KDL do link raiz com inércia permanece; não afeta o aceite.
+
+## Fase 5 — Etapa 4 local (4A–4D concluídas, 4E pendente)
+
+| ID | Status | Tarefa | Verificação executada |
+|---|---|---|---|
+| T5.1 | concluído | Reproduzir perda de condução no navegador | teste de Inserir falhou antes da correção |
+| T5.2 | concluído | Comparar xterm focado, shell direto e cadeia ROS | sequência direta e `/odom` OK; watchdog/bridge sem latch |
+| T5.3 | concluído | Foco explícito ao inserir, botão Focar terminal e foco preservado em cliques do workspace | `stage4-driving.spec.ts` |
+| T5.4 | concluído | Ctrl+C, publicação contínua e comando seguinte | `stage4-driving.spec.ts` |
+| T5.5 | concluído | Sequência completa na mesma sessão, ré relativa à frente | Playwright com `/odom` |
+| T5.6 | concluído | Manter condução após avançar e após a entrega | Playwright stage4 + stage3 atualizado |
+| T5.10 | concluído | Regressão de Stage 1/2A/2B/3 e 4A após a correção de foco | `make stage2b`, `make e2e`, `make e2e-4a`, integração 2A |
+| T5.7 | concluído | 4B: layout de duas colunas e terminal abaixo do visor | `stage2a.spec.ts` e `make e2e` |
+| T5.8 | concluído | 4C: curso v2 com seis módulos e Tab validado | `test-mission` 6/6; `stage4-driving` |
+| T5.9 | concluído | 4D: LiDAR real, sensores headless e obstáculos | `/scan` real; camada no Canvas |
+| T5.11 | pendente | 4E: teste com iniciante e host externo | depende de pessoa/host |

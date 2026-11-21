@@ -17,11 +17,22 @@ class MissionContentTest(unittest.TestCase):
         )
         self.mission = load_mission(path)
 
-    def test_four_steps_and_kinds(self):
-        self.assertEqual(len(self.mission["steps"]), 4)
+    def test_six_steps_and_kinds(self):
+        self.assertEqual(len(self.mission["steps"]), 6)
         self.assertEqual(
             [step["kind"] for step in self.mission["steps"]],
-            ["quiz", "quiz", "motion", "delivery"],
+            ["quiz", "quiz", "quiz", "motion", "quiz", "delivery"],
+        )
+        self.assertEqual(
+            [step["id"] for step in self.mission["steps"]],
+            [
+                "terminal",
+                "comunicacao",
+                "odometria",
+                "conducao",
+                "lidar",
+                "entrega",
+            ],
         )
 
     def test_answers_are_inside_options(self):
@@ -44,11 +55,18 @@ class MissionContentTest(unittest.TestCase):
                 self.assertNotIn("\n", command)
 
     def test_delivery_is_explicitly_calibrated(self):
-        delivery = self.mission["steps"][3]
+        delivery = self.mission["steps"][-1]
         self.assertIn("solution", delivery)
         self.assertGreater(len(delivery["solution"]), 0)
         for key in ("x", "y", "yaw", "tolerance"):
             self.assertIsInstance(delivery["solutionStart"][key], (int, float))
+
+    def test_lessons_have_examples_and_exercises(self):
+        for step in self.mission["steps"][:5]:
+            self.assertIn("why", step)
+            self.assertIn("example", step)
+            self.assertIn("exercise", step)
+            self.assertGreater(len(step["example"]), 0)
 
     def test_hook_is_approved(self):
         self.assertEqual(

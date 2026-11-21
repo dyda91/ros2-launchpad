@@ -18,6 +18,7 @@ docs/stage1-results.md                      evidências da Etapa 1
 docs/stage2a-results.md                     evidências da Etapa 2A
 docs/stage2b-results.md                     evidências da Etapa 2B local
 docs/stage3-results.md                      evidências da Etapa 3
+docs/stage4-results.md                      evidências da Etapa 4 local (4A–4D)
 docs/pilot-runbook.md                       operação do piloto privado
 docs/pilot-results.md                       evidências locais do piloto
 deploy/                                     Caddyfile, env e systemd
@@ -74,6 +75,7 @@ make stage2b               # Etapas 1 + integração 2B + Playwright 2B
 make measure-2b            # mede duas sessões simultâneas
 make stage3                # Etapa 1 + conteúdo/API + aplicação + Playwright
 make e2e                   # Playwright completo (2A + missão)
+make e2e-4a                # regressão de Tab/foco/condução da 4A
 make test-mission          # schema e conteúdo da missão
 make test-api              # restart com falha e retry
 make test-session-capacity # capacidade, progresso, TTL e reconciliação
@@ -108,8 +110,8 @@ source /ros_ws/install/setup.bash
 ros2 launch launchpad_bringup lab.launch.py
 ```
 
-Dentro do terminal do navegador, o ambiente já está carregado. A missão guia
-os quatro desafios; os comandos abaixo são a referência da Etapa 1:
+Dentro do terminal do navegador, o ambiente já está carregado. O curso guia
+seis módulos; os comandos abaixo são a referência da Etapa 1:
 
 ```bash
 ros2 topic list
@@ -132,6 +134,7 @@ make stage1
 make stage2a
 make stage2b
 make e2e
+make e2e-4a
 make test-pilot
 make pilot-acceptance
 ```
@@ -193,11 +196,17 @@ o que passou e o que permanece pendente.
   automática fazem parte da 2B local.
 - Se o navegador fechar sem clicar em “Encerrar sessão”, a vaga é liberada
   por inatividade/TTL; `make session-down`/`make down` continuam disponíveis.
-- Sem publicação pública, TLS real, cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
+- Sem publicação pública, TLS real, cadastro, SLAM, Nav2 ou visor 3D.
+- O LiDAR `gpu_lidar` roda headless no WSL sem GPU dedicada; o custo no host
+  real e o teste com iniciante continuam pendentes.
 - O piloto privado tem entrada por convite e templates de Caddy/host; a
   validação em domínio público continua pendente.
 - O progresso da missão sobrevive a recarregar a página, mas reinicia no
   reinício da missão e ao reiniciar API/runtime.
+- O terminal tem foco explícito ao inserir, botão **Focar terminal**,
+  **Ctrl+C** e **Ctrl+Shift+E**; Tab, condução, LiDAR e o curso de seis módulos
+  são cobertos por `stage4-driving.spec.ts`, `stage3.spec.ts` e
+  `stage2a.spec.ts`.
 - A solução completa da missão é opcional e calibrada para a pose após o
   desafio 3.
 - A sessão em si não monta `/tests`, `/content` nem o repositório.

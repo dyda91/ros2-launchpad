@@ -7,6 +7,9 @@
 - **Etapa 2B local:** implementada; publicação pública pendente.
 - **Etapa 3:** implementada.
 - **Piloto privado local:** implementado; validação em host/domínio pendente.
+- **Etapa 4A:** implementada; foco/inserção do terminal corrigidos.
+- **Etapas 4B–4D:** implementadas localmente (layout, curso v2, Tab e LiDAR).
+- **Etapa 4E:** pendente de teste com iniciante e host externo.
 
 ## Estrutura do monorepo
 
@@ -422,6 +425,28 @@ make pilot-up|pilot-down|pilot-admin|pilot-verify|pilot-acceptance
 - Caddyfile validado.
 - Host público: pendente de DNS, TLS e rootless reais.
 
+## Etapa 4 — curso completo (4A–4D concluídas, 4E pendente)
+
+### Decisões aprovadas
+
+- Curso `version: 2`, seis módulos: terminal Linux, comunicação ROS 2,
+  odometria, condução livre, LiDAR e obstáculos, entrega no armazém.
+- Meta inicial de 30–40 minutos.
+- Prática principal digitada; **Copiar** na última dica.
+- Tab validado no xterm e ensinado como parte da aula.
+- Aula à esquerda; visor à direita com o terminal imediatamente abaixo.
+- LiDAR real e obstáculos entram na 4D, depois de validar o sensor headless
+  no WSL.
+
+### Resultado da 4A
+
+- Foco vai para o xterm ao inserir.
+- Botão **Focar terminal** e botão **Ctrl+C** adicionados.
+- Estado do terminal visível e testável.
+- Sequência repetida validada na mesma sessão, incluindo ré relativa à frente.
+- Condução após avançar desafio e após a entrega validada.
+- Watchdog, bridge e Gazebo preservados.
+
 ## Etapa 3 — Primeiro Turno implementada
 
 ### Fluxo
@@ -430,7 +455,7 @@ make pilot-up|pilot-down|pilot-admin|pilot-verify|pilot-acceptance
 content/missions/primeiro-turno.yaml
         │
         ▼
-GET /api/mission ──► MissionPanel (conteúdo genérico, 4 desafios)
+GET /api/mission ──► MissionPanel (conteúdo genérico; 4 originais, 6 na Etapa 4)
         │
         ├── Quiz e previsão: respostas curtas no painel
         ├── Movimento: pose de referência + deslocamento + parada
@@ -508,7 +533,7 @@ restaurados.
   isolamento, encerramento e nova sessão na API real.
 - `tests/e2e/stage2a.spec.ts`: Playwright real com terminal, Ctrl+C, movimento,
   Canvas, layout responsivo, encerramento e reinício.
-- `tests/e2e/stage3.spec.ts`: quatro desafios, inserção segura, passagem em
+- `tests/e2e/stage3.spec.ts`: seis módulos após a Etapa 4, inserção segura, passagem em
   movimento, entrega, reinício e falha de restart.
 - `test_mission_content.py`: schema, respostas, comandos e gancho.
 - `test_session_restart_failure.py`: limpeza antiga + falha do novo container +

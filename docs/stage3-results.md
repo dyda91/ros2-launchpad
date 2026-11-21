@@ -2,6 +2,10 @@
 
 Data: 2026-11-21.
 
+Nota: a trilha original de quatro desafios foi evoluída na Etapa 4 para seis
+módulos. Os resultados abaixo registram a aceitação histórica da Etapa 3; a
+regressão atual usa o curso v2.
+
 ## Escopo entregue
 
 A missão guiada de quatro desafios foi integrada à sessão local da Etapa 2A,
@@ -105,6 +109,8 @@ make test-api
 
 ## Observações e limites
 
+- A Etapa 4A adicionou foco explícito no terminal e validou uma nova
+  condução após a entrega concluída no Playwright.
 - A entrega continua local, em `127.0.0.1:8080`; a Etapa 2B elevou para duas
   sessões simultâneas, com reconexão, TTL e inatividade.
 - A publicação pública com TLS e o isolamento de piloto continuam pendentes.

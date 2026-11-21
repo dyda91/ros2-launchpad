@@ -84,6 +84,7 @@ class AgentApp:
                 "launch_pid": self.launch.pid,
                 "odom": self.ros.latest(),
                 "mission": self.ros.latest_mission(),
+                "scan": self.ros.latest_scan(),
                 "error": self.current_error(),
             }
         )
@@ -167,6 +168,11 @@ class AgentApp:
                 if mission is not None:
                     await ws.send_str(
                         json.dumps({"type": "mission", **mission})
+                    )
+                scan = self.ros.latest_scan()
+                if scan is not None:
+                    await ws.send_str(
+                        json.dumps({"type": "scan", **scan})
                     )
                 await asyncio.sleep(0.1)
         finally:

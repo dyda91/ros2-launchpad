@@ -134,7 +134,7 @@ CODE="$(curl -sS -o /dev/null -w '%{http_code}' -b "$COOKIE_A" \
 
 printf '\n[4/7] aviso e expiração por inatividade\n'
 WARNING_SEEN=0
-for attempt in $(seq 1 30); do
+for attempt in $(seq 1 $((IDLE + 15))); do
   touch_session "$COOKIE_A"
   BODY="$(curl -fsS -b "$COOKIE_B" "$BASE/api/session")"
   STATE_B="$(printf '%s' "$BODY" | json_field state)"
@@ -170,10 +170,13 @@ TAG_C="$(printf '%s' "$START_C" | json_field session_tag)"
 [[ "$(container_names | wc -l)" -eq 2 ]] || fail "container C não foi criado"
 
 printf '\n[6/7] reinício mantém a vaga e zera o progresso\n'
+touch_session "$COOKIE_A"
+touch_session "$COOKIE_B"
 CODE="$(curl -sS -o /tmp/ros2-launchpad-stage2b-restart.json -w '%{http_code}' \
   -b "$COOKIE_A" -X POST "$BASE/api/session/restart")"
 [[ "$CODE" == "202" ]] || fail "restart não aceitou ($CODE)"
 wait_state "$COOKIE_A" ready >/dev/null
+touch_session "$COOKIE_B"
 STATE_A="$(curl -fsS -b "$COOKIE_A" "$BASE/api/session")"
 [[ "$(printf '%s' "$STATE_A" | json_field session_tag)" == "$TAG_A" ]] || fail "restart trocou a sessão"
 [[ "$(printf '%s' "$STATE_A" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("progress",{}).get("stepIndex",0))')" == "0" ]] || fail "restart manteve o progresso"

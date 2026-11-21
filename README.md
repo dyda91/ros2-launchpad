@@ -13,12 +13,16 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
 - **Etapa 2B local:** duas sessões simultâneas, progresso por sessão,
   reconexão de terminal/telemetria, TTL, inatividade, aviso e limpeza —
   implementada e validada.
-- **Etapa 3:** missão guiada "Primeiro Turno", quatro desafios, inserção segura
-  de comandos, validação da entrega e reinício — implementada e validada.
+- **Etapa 3:** missão guiada "Primeiro Turno" com validação da entrega e
+  reinício — implementada e validada; evoluída na Etapa 4 para seis módulos.
 - **Piloto privado local:** entrada por convite, rootfs read-only, eventos de
   missão e templates de Caddy/host — implementado e validado localmente.
 - **Piloto público:** DNS/TLS reais, rootless validado no host e isolamento
   reforçado — pendente.
+- **Etapa 4 local (4A–4D):** foco/Tab, condução repetida, curso v2 em seis
+  módulos, layout de duas colunas, visor com LiDAR e obstáculos — implementada
+  e validada localmente.
+- **Etapa 4E:** teste com iniciante e host externo — pendente.
 
 ## O que funciona
 
@@ -29,10 +33,15 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
 - Página React/TypeScript/Vite em `http://localhost:8080`.
 - Até duas sessões anônimas simultâneas criadas pelo clique em “Iniciar
   laboratório”, com containers, UDS, ROS graph e progresso próprios.
+- Curso introdutório de seis módulos com exemplos comentados, previsões,
+  exercícios e dicas graduais.
+- Tab real no xterm para caminhos e subcomandos ROS 2; `Ctrl+Shift+E` sai do
+  terminal e leva o foco à aula.
+- Visor 2D com orientação, zoom, recentralização, legenda e camada LiDAR.
 - Terminal xterm.js conectado a um PTY bash real dentro do container da
   sessão.
 - Visor Canvas 2D com o mesmo `map.json` do simulador e pose real de `/odom`.
-- Missão guiada em quatro desafios, com ação/observação/dica e conteúdo em YAML.
+- Curso guiado em seis módulos, com ação/observação/dica e conteúdo em YAML.
 - Validação da entrega pelo `mission_monitor` real; passar pela zona em
   movimento não conclui.
 - Reinício da missão que recria o container e volta à pose inicial.
@@ -46,7 +55,7 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
 
 O acesso local é em loopback. O piloto privado usa convite e pode ser exposto
 por um Caddy no host; a validação pública com DNS/TLS reais continua pendente.
-Não há cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
+Não há cadastro, SLAM, Nav2 ou visor 3D.
 
 ## Pré-requisitos no WSL
 
@@ -81,7 +90,7 @@ http://localhost:8080
 
 Clique em **Iniciar laboratório** e aguarde o estado **Pronto**. O simulador é
 iniciado automaticamente; não é necessário executar `ros2 launch` em outro
-terminal. O painel da missão aparece ao lado do visor e do terminal.
+terminal. A aula fica à esquerda; visor e terminal ficam empilhados à direita.
 
 Para parar:
 
@@ -98,35 +107,45 @@ make session-down
 
 ## O que testar no navegador
 
-A missão começa no desafio 1. Use **Copiar** ou **Inserir no terminal** na
-prévia do comando; pressione Enter no terminal. A inserção só é liberada
-quando o shell está no prompt vazio.
+O curso começa no módulo 1. Leia o conceito e o exemplo, depois digite no
+terminal. Use **Copiar** apenas nas dicas quando precisar; a solução completa
+aparece depois de esgotar as dicas.
 
 No terminal do laboratório:
 
 ```bash
+pwd
+ls
 ros2 topic list
+ros2 topic type /cmd_vel
+ros2 interface show geometry_msgs/msg/Twist
+timeout 2 ros2 topic hz /odom
+ros2 topic echo --once /odom
 ```
 
-Confirme `/cmd_vel` e `/odom`. Depois:
+Tab completa caminhos e subcomandos; em prefixo ambíguo, pressione Tab
+novamente para listar. Ctrl+C interrompe um comando; Ctrl+Shift+E sai do
+terminal e leva o foco para a aula.
+
+Mova o robô com comandos finitos; para movimento contínuo, remova o timeout e
+pare com Ctrl+C:
 
 ```bash
-ros2 topic echo /odom
-```
-
-Pressione **Ctrl+C** e confirme que o prompt volta.
-
-Mova o robô com o comando validado na Etapa 1:
-
-```bash
-timeout 3 ros2 topic pub --rate 10 /cmd_vel \
+timeout 2 ros2 topic pub --rate 10 /cmd_vel \
   geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
+timeout 1.5 ros2 topic pub --rate 10 /cmd_vel \
+  geometry_msgs/msg/Twist "{angular: {z: 0.8}}"
+timeout 1.5 ros2 topic pub --rate 10 /cmd_vel \
+  geometry_msgs/msg/Twist "{linear: {x: -0.15}}"
 ```
 
-O robô deve andar no Canvas e parar após o watchdog. Siga os desafios 2, 3 e 4
-no painel. No desafio 4, a entrega só é confirmada quando o robô para dentro
-da zona por 2 s. Use **Reiniciar missão** para recriar a sessão e voltar ao
-desafio 1; **Encerrar sessão** libera a vaga.
+O yaw e o deslocamento x/y aparecem no visor; após uma curva, avance na frente
+do robô, não apenas no eixo X do mapa. O botão **LiDAR** liga e desliga os
+pontos do `/scan`; os controles de zoom e **Centralizar** ajustam o visor.
+
+A entrega do módulo 6 só é confirmada quando o robô para dentro da zona por
+2 s. Use **Reiniciar missão** para recriar a sessão e voltar ao módulo 1;
+**Encerrar sessão** libera a vaga.
 
 O progresso fica guardado na API por sessão: recarregar a página restaura o
 painel; **Reiniciar missão** zera o progresso e recria o container. A sessão
@@ -173,26 +192,20 @@ make test-pilot  # convites, controle, rate limit e eventos
 make pilot-up    # API/runtime com convite e hardening
 make pilot-down  # encerra o piloto e remove as sessões
 make pilot-admin # CLI de convites/controle
-make pilot-verify # pré-requisitos e HTTPS do host
-make pilot-inspect # isolamento real dos containers
-make pilot-acceptance # aceite local do piloto
-make pilot-host-e2e # Playwright externo com três convites
-make staging-up # piloto isolado com TTL curto
-make staging-expiry # valida expiração curta
-make staging-down # limpa o staging
-make e2e         # Playwright completo: 2A + Primeiro Turno
+make e2e         # Playwright 2A + curso de seis módulos
+make e2e-4a      # Tab, foco, condução, Ctrl+C e comandos ROS
 make stage3      # Etapa 1 + conteúdo/API + aplicação + Playwright
 ```
 
-O `make e2e` valida terminal, Canvas, layout responsivo, os quatro desafios,
+O `make e2e` valida terminal, Canvas, layout responsivo, os seis módulos,
 inserção com texto já digitado, `ros2 topic echo` em execução, passagem pela
 zona em movimento, conclusão após a parada, reinício com pose e painel
 restaurados e a falha de reinício com nova tentativa.
 
-O `make stage2b` usa prazos curtos (TTL 90 s, inatividade 15 s, aviso 5 s) e
+O `make stage2b` usa prazos curtos (TTL 120 s, inatividade 45 s, aviso 5 s) e
 valida duas sessões isoladas, terceiro navegador `full`, progresso, reload,
-reconexão do terminal e expiração. Ele é separado do `make e2e`, que mantém os
-prazos normais.
+reconexão, expiração e o custo do LiDAR. Ele é separado do `make e2e`, que
+mantém os prazos normais.
 
 O Playwright usa Chromium headless em um container de teste com
 `--network host` para alcançar o loopback do WSL.
@@ -205,8 +218,9 @@ Etapa 1: startup **6,25–6,28 s** na rodada final, parada **0,400 s**,
 núcleo e **269,9 MiB**. Etapa 2B: duas sessões prontas em **7,90 s** e
 **6,85 s**; ~**270 MiB** e **63–65%** de um núcleo cada; Playwright 2B
 **2 passed em 1,2 min**. Etapa 3: `make e2e` **3 passed em 2,2–2,3 min**; entrega
-validada pelo monitor real. Piloto privado local: `make test-pilot` **5/5**,
-`make pilot-acceptance` **OK** e `make pilot-e2e` **2 passed**.
+validada pelo monitor real. Etapa 4 local: `make e2e-4a` **8 passed em 2,2 min**.
+Piloto privado local: `make test-pilot` **5/5**, `make pilot-acceptance`
+**OK** e `make pilot-e2e` **2 passed**.
 
 Detalhes:
 
@@ -214,6 +228,7 @@ Detalhes:
 - [`docs/stage2a-results.md`](docs/stage2a-results.md)
 - [`docs/stage2b-results.md`](docs/stage2b-results.md)
 - [`docs/stage3-results.md`](docs/stage3-results.md)
+- [`docs/stage4-results.md`](docs/stage4-results.md)
 - [`docs/pilot-runbook.md`](docs/pilot-runbook.md)
 - [`docs/pilot-results.md`](docs/pilot-results.md)
 
@@ -300,8 +315,9 @@ make stage2a     # aceite da Etapa 2A
 make stage2b     # aceite da Etapa 2B local
 make measure-2b  # medição de duas sessões
 make stage3      # aceite da missão Primeiro Turno
-make e2e         # Playwright completo (2A + missão)
-make test-mission # conteúdo da missão
+make e2e         # Playwright completo (2A + curso)
+make e2e-4a      # regressão de Tab/condução/comandos ROS
+make test-mission # conteúdo do curso de seis módulos
 make test-api    # restart com falha e retry
 make test-session-capacity # capacidade, progresso, TTL e reconciliação
 make lab-up      # laboratório manual
@@ -326,7 +342,7 @@ lab/image/agent/                            agente da sessão (aiohttp/PTY/ROS)
 apps/api/                                   FastAPI e proxy UDS
 apps/runtime/                               controlador do Docker
 apps/web/                                   React + TypeScript + Vite
-apps/web/src/components/MissionPanel.tsx    painel dos quatro desafios
+apps/web/src/components/MissionPanel.tsx    painel do curso e exercícios
 compose.pilot.yaml                          convite, estado e hardening
 compose.pilot-staging.yaml                  staging isolado com TTL curto
 specs/001-primeiro-turno/                   spec, plan e tasks
@@ -434,9 +450,11 @@ powershell.exe -NoProfile -Command \
 - Duas sessões simultâneas; o terceiro navegador recebe “Laboratório cheio”.
 - A reconexão de terminal/telemetria e a expiração por inatividade/TTL fazem
   parte da 2B local.
-- Sem publicação pública, TLS real, cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
+- Sem publicação pública, TLS real, cadastro, SLAM, Nav2 ou visor 3D.
 - O piloto privado tem convite e templates de host; o aceite em domínio público
   depende de DNS, TLS e rootless reais.
+- O LiDAR foi validado no WSL com renderização headless; o custo no host real
+  e o teste com iniciante continuam pendentes.
 - O progresso da missão sobrevive a recarregar, mas reinicia no reinício da
   missão e ao reiniciar API/runtime.
 - A solução completa é opcional e calibrada para a pose após o desafio 3.

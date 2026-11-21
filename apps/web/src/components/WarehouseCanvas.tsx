@@ -1,11 +1,14 @@
 import { useEffect, useRef } from "react";
 
-import type { MapData, Pose } from "../types";
+import type { MapData, Pose, ScanData } from "../types";
 
 function drawScene(
   canvas: HTMLCanvasElement,
   map: MapData,
-  pose: Pose | null
+  pose: Pose | null,
+  scan: ScanData | null,
+  showLidar: boolean,
+  zoom: number
 ) {
   const context = canvas.getContext("2d");
   if (context === null) {
@@ -32,7 +35,7 @@ function drawScene(
   const scale = Math.min(
     (width - padding * 2) / (maxX - minX),
     (height - padding * 2) / (maxY - minY)
-  );
+  ) * zoom;
   const offsetX = (width - (maxX - minX) * scale) / 2;
   const offsetY = (height - (maxY - minY) * scale) / 2;
 
@@ -146,6 +149,28 @@ function drawScene(
   context.font = "12px system-ui, sans-serif";
   context.fillText(zone.id, screenX(zone.bounds.min[0]) + 6, screenY(zone.bounds.max[1]) + 18);
 
+  if (showLidar && scan !== null && pose !== null) {
+    context.fillStyle = "rgba(96, 165, 250, 0.9)";
+    for (let index = 0; index < scan.ranges.length; index += 1) {
+      const range = scan.ranges[index];
+      if (range === null || range < scan.range_min || range > scan.range_max) {
+        continue;
+      }
+      const angle = scan.angle_min + index * scan.angle_increment;
+      const worldX = pose.x + range * Math.cos(pose.yaw + angle);
+      const worldY = pose.y + range * Math.sin(pose.yaw + angle);
+      context.beginPath();
+      context.arc(
+        screenX(worldX),
+        screenY(worldY),
+        Math.max(1.5, screenLength(0.018)),
+        0,
+        Math.PI * 2
+      );
+      context.fill();
+    }
+  }
+
   if (pose !== null) {
     const robotX = screenX(pose.x);
     const robotY = screenY(pose.y);
@@ -172,10 +197,16 @@ function drawScene(
 
 export default function WarehouseCanvas({
   map,
-  pose
+  pose,
+  scan,
+  showLidar,
+  zoom
 }: {
   map: MapData;
   pose: Pose | null;
+  scan: ScanData | null;
+  showLidar: boolean;
+  zoom: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -184,12 +215,12 @@ export default function WarehouseCanvas({
     if (canvas === null) {
       return;
     }
-    const render = () => drawScene(canvas, map, pose);
+    const render = () => drawScene(canvas, map, pose, scan, showLidar, zoom);
     render();
     const observer = new ResizeObserver(render);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [map, pose]);
+  }, [map, pose, scan, showLidar, zoom]);
 
   return (
     <canvas

@@ -288,7 +288,7 @@ class SessionManager:
         if len(json.dumps(progress)) > 16384:
             return False
         step = progress.get("stepIndex")
-        if not isinstance(step, int) or step < 0 or step > 3:
+        if not isinstance(step, int) or step < 0 or step > 5:
             return False
         for key in (
             "selected",

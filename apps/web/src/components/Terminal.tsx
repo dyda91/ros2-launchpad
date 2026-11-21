@@ -13,7 +13,9 @@ import type { InsertResult, TerminalState } from "../types";
 
 export interface TerminalHandle {
   insert: (text: string) => void;
+  interrupt: () => void;
   focus: () => void;
+  blur: () => void;
 }
 
 interface TerminalProps {
@@ -44,8 +46,18 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(
             socket.send(JSON.stringify({ type: "insert", data: text }));
           }
         },
+        interrupt() {
+          const socket = socketRef.current;
+          if (socket !== null && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "input", data: "\u0003" }));
+          }
+          terminalRef.current?.focus();
+        },
         focus() {
           terminalRef.current?.focus();
+        },
+        blur() {
+          terminalRef.current?.blur();
         }
       }),
       []

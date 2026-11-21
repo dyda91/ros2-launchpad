@@ -441,11 +441,25 @@ export default function MissionPanel({
     setMotionDone(false);
   }
 
+  function preserveTerminalFocus(event: React.MouseEvent<HTMLElement>) {
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest("button") !== null
+    ) {
+      event.preventDefault();
+    }
+  }
+
   return (
-    <aside className="panel mission-panel" data-testid="mission-panel">
+    <aside
+      className="panel mission-panel"
+      data-testid="mission-panel"
+      tabIndex={-1}
+      onMouseDown={preserveTerminalFocus}
+    >
       <div className="panel-header mission-header">
         <div>
-          <p className="eyebrow">Desafio {stepIndex + 1} de {mission.steps.length}</p>
+          <p className="eyebrow">Módulo {stepIndex + 1} de {mission.steps.length}</p>
           <h2>{mission.title}</h2>
         </div>
         <button
@@ -476,13 +490,57 @@ export default function MissionPanel({
               <span className="concept-label">Conceito</span>
               <p>{step.concept}</p>
             </div>
+            {step.why ? (
+              <p className="mission-why">
+                <strong>Por que importa:</strong> {step.why}
+              </p>
+            ) : null}
+            {step.example && step.example.length > 0 ? (
+              <div className="mission-example">
+                <span className="concept-label">Exemplo comentado</span>
+                <pre>{step.example.join("\n")}</pre>
+              </div>
+            ) : null}
             <p className="mission-action">
               <strong>Ação:</strong> {step.action}
             </p>
+            {step.exercise ? (
+              <p className="mission-exercise">
+                <strong>Exercício:</strong> {step.exercise}
+              </p>
+            ) : null}
             {step.observe ? (
               <p className="mission-observe">
                 <strong>Observe:</strong> {step.observe}
               </p>
+            ) : null}
+
+            {step.kind !== "delivery" ? (
+              <Hints
+                step={step}
+                hintsShown={hintsShown}
+                setHintsShown={setHintsShown}
+              />
+            ) : null}
+
+            {step.kind !== "delivery" &&
+            hintsShown >= step.hints.length &&
+            step.solution ? (
+              <div className="solution">
+                <p className="solution-note">
+                  Solução completa — use Copiar e execute no terminal.
+                </p>
+                {step.solution.map((command, index) => (
+                  <CommandPreview
+                    key={command}
+                    command={command}
+                    terminalState={terminalState}
+                    insertNotice={insertNotice}
+                    onInsert={onInsert}
+                    testId={`solution-command-${index}`}
+                  />
+                ))}
+              </div>
             ) : null}
 
             {step.kind === "quiz" ? (
@@ -519,7 +577,7 @@ export default function MissionPanel({
                           onClick={nextStep}
                           data-testid="next-step"
                         >
-                          Próximo desafio
+                          Próximo módulo
                         </button>
                       </div>
                     ) : (
@@ -576,7 +634,7 @@ export default function MissionPanel({
                       onClick={nextStep}
                       data-testid="next-step"
                     >
-                      Ir para a entrega
+                      Próximo módulo
                     </button>
                   </div>
                 ) : null}

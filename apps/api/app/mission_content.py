@@ -32,15 +32,28 @@ def _validate_step(step, index):
         raise ValueError(f"{path}.kind is invalid")
     for key in ("title", "concept", "action"):
         _require(step, key, str, path)
+    for key in ("why", "exercise"):
+        value = step.get(key)
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"{path}.{key} must be a string")
+    example = step.get("example")
+    if example is not None:
+        if not isinstance(example, list) or not all(
+            isinstance(item, str) for item in example
+        ):
+            raise ValueError(f"{path}.example must be a list of strings")
     hints = _require(step, "hints", list, path)
     if not all(isinstance(item, str) for item in hints):
         raise ValueError(f"{path}.hints must be strings")
+    insert = step.get("insertCommand")
+    if insert is not None:
+        if not isinstance(insert, str) or "\n" in insert:
+            raise ValueError(f"{path}.insertCommand must be a single line")
 
     if kind == "quiz":
-        insert = step.get("insertCommand")
-        if insert is not None and not isinstance(insert, str):
-            raise ValueError(f"{path}.insertCommand must be a string")
-        _validate_question(_require(step, "question", dict, path), f"{path}.question")
+        _validate_question(
+            _require(step, "question", dict, path), f"{path}.question"
+        )
 
     if kind == "motion":
         _validate_question(
@@ -75,8 +88,8 @@ def load_mission(path):
     for key in ("id", "title", "intro"):
         _require(data, key, str, "mission")
     steps = _require(data, "steps", list, "mission")
-    if len(steps) != 4:
-        raise ValueError("mission must have exactly four steps")
+    if len(steps) != 6:
+        raise ValueError("mission must have exactly six steps")
     ids = set()
     for index, step in enumerate(steps):
         _validate_step(step, index)
