@@ -123,6 +123,9 @@ encerramento                         dois containers e UDS removidos
 | T4.6 | concluído | Eventos de missão sem conteúdo do terminal | aceite com `events`; sem termo terminal |
 | T4.7 | pendente | Validação em host Ubuntu 24.04 com rootless, DNS e TLS | depende do host/domínio |
 | T4.8 | pendente | WebSocket `wss://` pelo Caddy real e comparação CPU/RAM | depende do host/domínio |
+| T4.9 | concluído | Playwright externo com 3 convites, lotação, retry, usado e revogado | `host-pilot.spec.ts` local aprovado |
+| T4.10 | concluído | Staging isolado com projeto/estado/sockets/porta próprios e TTL curto | `make staging-expiry` OK |
+| T4.11 | concluído | Verificação TLS com hostname, SAN, emissor e validade; AAAA opcional | scripts ajustados; teste real pendente de host |
 
 ### Evidências do piloto local
 
@@ -130,6 +133,8 @@ encerramento                         dois containers e UDS removidos
 make test-pilot                     5/5 OK
 make pilot-acceptance               OK
 make pilot-e2e                      2 passed
+make pilot-host-e2e local            1 passed
+make staging-expiry                 OK
 sessão read-only                    ready; Gazebo + /odom
 docker inspect                      readonly, network none, cap_drop, sem Docker
 caddy validate                      Valid configuration

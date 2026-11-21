@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+test.use({ trace: "off", screenshot: "off", video: "off" });
+
 test.afterEach(async ({ page }) => {
   try {
     await page.request.delete("/api/session");

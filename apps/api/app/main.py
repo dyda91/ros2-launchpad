@@ -163,18 +163,20 @@ async def redeem_pilot_invite(request: Request):
 async def session_state(request: Request):
     cookie = request.cookies.get(settings.cookie_name)
     existing = session_for_cookie(request)
-    if pilot(request) is not None and existing is None:
-        state = pilot_state(request)
-        if state == "paused":
-            return {"state": "pilot_paused", "pilot_state": "paused"}
-        if state == "closed":
-            return {"state": "pilot_closed", "pilot_state": "closed"}
-        access = pilot_access(request)
-        if access is None or access["consumed"]:
-            return {"state": "invite_required", "pilot_state": state}
     payload = manager(request).state(cookie)
     if pilot(request) is not None:
         payload["pilot_state"] = pilot_state(request)
+        if existing is None:
+            if payload.get("state") == "expired":
+                return payload
+            state = pilot_state(request)
+            if state == "paused":
+                return {"state": "pilot_paused", "pilot_state": "paused"}
+            if state == "closed":
+                return {"state": "pilot_closed", "pilot_state": "closed"}
+            access = pilot_access(request)
+            if access is None or access["consumed"]:
+                return {"state": "invite_required", "pilot_state": state}
     return payload
 
 

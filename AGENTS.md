@@ -30,10 +30,11 @@ apps/api/                                   FastAPI, sessão e proxy UDS
 apps/runtime/                               controlador do Docker
 apps/web/                                   React + TypeScript + Vite
 specs/001-primeiro-turno/                   spec, plan e tasks
-tests/integration/                          aceite real das Etapas 1, 2A e 2B
-tests/e2e/                                  Playwright 2A, 2B e missão
+tests/integration/                          aceite real, piloto e staging
+tests/e2e/                                  Playwright 2A, 2B, missão, piloto e host
 compose.yaml                                lab, api e runtime
 compose.pilot.yaml                          convite, estado e hardening
+compose.pilot-staging.yaml                  staging isolado com TTL curto
 Makefile                                    comandos reproduzíveis
 ```
 
@@ -81,8 +82,14 @@ make pilot-up              # API/runtime com convite e hardening
 make pilot-down            # encerra o piloto e remove as sessões
 make pilot-admin           # CLI de convites/controle (ARGS=...)
 make pilot-verify          # pré-requisitos e HTTPS do host
+make pilot-inspect         # inspeção real do isolamento das sessões
 make pilot-acceptance      # aceite local de convite/pausa/fechamento
 make pilot-e2e             # Playwright da tela de convite
+make pilot-host-e2e        # Playwright externo, 3 contextos
+make staging-up            # piloto isolado com TTL curto
+make staging-admin         # CLI do staging
+make staging-expiry        # expiração curta do staging
+make staging-down          # limpa o staging
 make test-world            # geometria e geração do mundo
 make lab-up                # container manual da Etapa 1
 make lab-shell             # shell no laboratório manual
@@ -138,7 +145,8 @@ o que passou e o que permanece pendente.
 
 - `apps/runtime` é o único componente com `/var/run/docker.sock`; ele cria,
   inspeciona e remove `ros2-launchpad-session-<id>`, com labels
-  `launchpad.role=session`, `launchpad.session` e `launchpad.managed`.
+  `launchpad.role=session`, `launchpad.project`, `launchpad.session` e
+  `launchpad.managed`. O runtime filtra pelo próprio projeto.
 - `apps/api` tem HTTP interno com `RUNTIME_TOKEN` e acesso à UDS da sessão;
   não tem Docker.
 - `apps/web` fala apenas com a API, por HTTP e WebSocket.
@@ -162,6 +170,10 @@ o que passou e o que permanece pendente.
   criar, interagir e tocar contam como atividade; telemetria não conta.
 - O piloto pode rodar com `SESSION_READ_ONLY=true`, tmpfs, ulimits e
   `SESSION_APPARMOR`; o host deve ser rootless.
+- O staging usa projeto, porta, estado, sockets e labels próprios
+  (`launchpad.project=staging`); não deve compartilhar o mesmo `run/sessions`.
+- `tests/e2e/host-pilot.spec.ts` é externo e não faz administração; convites,
+  pausa e fechamento usam o CLI no host.
 - Cookie `HttpOnly`, `SameSite=Lax`; validação de `Origin`; token do agente
   não é exposto ao shell.
 - `HOST_RUN_DIR` é passado pelo Makefile para o runtime e deve ser um caminho
@@ -171,6 +183,8 @@ o que passou e o que permanece pendente.
   continuam requisitos antes da publicação.
 - O piloto privado espera host Ubuntu 24.04 com Docker rootless, Caddy 2,
   DNS e 80/443; `make pilot-verify` e o runbook descrevem o aceite.
+- DNS, TLS/WSS externos, isolamento efetivo e métricas de CPU/RAM do host
+  continuam pendentes até a execução em um servidor real.
 
 ## Limitações atuais
 

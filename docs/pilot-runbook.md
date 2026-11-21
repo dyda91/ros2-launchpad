@@ -17,7 +17,8 @@ URL, no log ou no frontend depois do resgate.
 - Docker Engine/Compose em **rootless**; `uidmap`, `newuidmap`, `newgidmap`,
   `subuid`/`subgid` e user namespaces habilitados.
 - Caddy 2 no host, com portas 80/443; API apenas em `127.0.0.1:8080`.
-- DNS de `pilot.exemplo.org` apontando para o host.
+- DNS de `pilot.exemplo.org` apontando para o host; A é obrigatório e AAAA é
+  opcional conforme a disponibilidade de IPv6.
 - SSH por chave, root desabilitado, firewall fechado exceto 22, 80 e 443.
 - Sem GPU, GUI, WSL, X11 ou RViz.
 
@@ -83,7 +84,10 @@ PUBLIC_ORIGINS=https://pilot.exemplo.org
 COOKIE_SECURE=true
 MAX_SESSIONS=2
 HOST_RUN_DIR=/srv/launchpad/run/sessions
+RUN_HOST_DIR=run/sessions
+PILOT_HOST_DIR=run/pilot
 DOCKER_SOCKET=/run/user/<uid>/docker.sock
+SESSION_PROJECT=launchpad
 SESSION_READ_ONLY=true
 SESSION_APPARMOR=docker-default
 PILOT_ENABLED=true
@@ -125,8 +129,18 @@ Em produção, não expor o CLI pela web. Ele roda por SSH e escreve no volume
 make pilot-verify
 ```
 
-O script confere rootless, AppArmor, seccomp, DNS, portas, health, redirecionamento
-HTTP, TLS e HSTS. Depois validar no navegador:
+O script confere rootless, AppArmor, seccomp, DNS A (AAAA é opcional),
+portas, health, redirecionamento HTTP, hostname/SAN/emissor/validade do
+certificado e HSTS. Com duas sessões ativas, inspecione o perfil efetivo:
+
+```bash
+make pilot-inspect
+```
+
+O inspector lê `docker inspect` de cada container do projeto, mostra
+`ReadonlyRootfs`, rede, capabilities, AppArmor, seccomp, tmpfs, ulimits,
+usuário, binds e executa probes somente leitura dentro da sessão. Ele não lê
+o conteúdo do terminal. Depois validar no navegador:
 
 1. Entrar com o convite.
 2. Iniciar e aguardar “Pronto”.
@@ -204,3 +218,166 @@ find /srv/launchpad/run/sessions -mindepth 1 -maxdepth 1
 - Caddy HTTPS: <https://caddyserver.com/docs/automatic-https>
 - Caddy proxy/WebSocket: <https://caddyserver.com/docs/caddyfile/directives/reverse_proxy>
 - Caddy logs: <https://caddyserver.com/docs/caddyfile/directives/log>
+
+## Aceite no host real
+
+### Antes de começar
+
+Confirme que o host está com rootless, Caddy e DNS já validados. Não execute
+`make stage2b`, `make measure-2b` ou `make pilot-acceptance` durante um piloto
+ativo: esses comandos limpam sessões e reiniciam a aplicação. Use-os apenas em
+janela de manutenção ou no staging isolado.
+
+### Operações administrativas no host
+
+O CLI é separado do Playwright externo. Os códigos são exibidos apenas uma vez
+e não devem ser colocados em arquivos do repositório, logs compartilháveis ou
+capturas de tela.
+
+```bash
+set -a
+source /etc/launchpad/pilot.env
+set +a
+
+make pilot-admin ARGS="invite --label host-a --ttl 1800"
+make pilot-admin ARGS="invite --label host-b --ttl 1800"
+make pilot-admin ARGS="invite --label host-c --ttl 1800"
+make pilot-admin ARGS="invite --label host-revoked --ttl 1800"
+make pilot-admin ARGS="revoke <id-do-host-revoked>"
+```
+
+Também é possível usar `make pilot-admin ARGS="list"` para localizar o ID do
+convite revogado. Entregue os códigos A, B e C ao operador do navegador externo
+por canal privado. O código revogado serve apenas para o teste negativo.
+
+### Playwright externo
+
+Execute em uma máquina fora do host, com os códigos apenas em variáveis de
+ambiente:
+
+```bash
+export PILOT_BASE_URL="https://pilot.exemplo.org"
+export PILOT_INVITE_A="<código A>"
+export PILOT_INVITE_B="<código B>"
+export PILOT_INVITE_C="<código C>"
+export PILOT_INVITE_REVOKED="<código revogado>"
+make pilot-host-e2e
+```
+
+O teste `host-pilot.spec.ts`:
+
+- usa três contextos e três convites válidos;
+- verifica convite inválido, usado e revogado;
+- inicia A e B, confirma dois `wss://` de terminal/telemetria quando a URL é
+  HTTPS;
+- abre C com convite válido e confirma `full`, sem criar sessão;
+- encerra A e confirma que C consegue tentar novamente e iniciar quando a vaga
+  é liberada;
+- força a queda do WebSocket do terminal e valida a reconexão.
+
+Ele não cria, revoga ou pausa convites. Essas ações são feitas pelo CLI no
+host. Não habilite trace, screenshot ou vídeo: o teste já desliga artefatos.
+O Playwright mantém artefatos desligados por padrão; use
+`PILOT_E2E_ARTIFACTS=1` somente em uma reprodução local e apague o resultado
+antes de compartilhar.
+
+Para testar localmente o mesmo spec via loopback, use:
+
+```bash
+PILOT_BASE_URL=http://127.0.0.1:8080 PILOT_HOST_NETWORK=1 \
+  PILOT_INVITE_A="..." PILOT_INVITE_B="..." \
+  PILOT_INVITE_C="..." PILOT_INVITE_REVOKED="..." \
+  make pilot-host-e2e
+```
+
+### Lotação sem container novo
+
+Com A e B ativos, antes e depois de abrir o terceiro contexto:
+
+```bash
+docker ps -q --filter label=launchpad.role=session \
+  --filter label=launchpad.project=launchpad | wc -l
+```
+
+O resultado deve permanecer `2`; C deve mostrar “As duas vagas estão em uso” e
+não deve aparecer um terceiro container.
+
+### Sequência CLI → navegador
+
+| Ação no host | Efeito observado no navegador |
+|---|---|
+| `make pilot-admin ARGS="pause"` | Sessões ativas mostram o aviso “O piloto pausou novas entradas”; uma nova entrada recebe recusa; A/B continuam `ready` |
+| `make pilot-admin ARGS="resume"` | O aviso desaparece na próxima atualização de ciclo de vida; uma nova entrada volta a ser aceita quando houver vaga |
+| `make pilot-admin ARGS="close"` | Novas entradas recebem “piloto encerrado”; sessões ativas são encerradas após a carência; containers, UDS e `run/sessions` são removidos |
+| `make pilot-admin ARGS="close --now"` | Mesmo efeito, sem carência |
+
+Durante o fechamento, o Caddy permanece com TLS; a API pode responder erro até
+ser parada pelo compose. Registre o estado final de Caddy/API/runtime.
+
+### Staging curto
+
+O staging usa projeto, estado, sockets e portas próprios:
+
+Expiração automática:
+
+```bash
+make staging-expiry
+```
+
+Ele sobe o staging, cria a sessão, aguarda a inatividade curta (30 s, TTL
+120 s), confirma `expired`, vaga livre e container removido, e derruba o
+staging. Usa `run/staging`, labels `launchpad.project=staging` e a porta
+`18080`; não interfere nas sessões de `run/sessions`.
+
+Operação manual do staging:
+
+```bash
+make staging-up
+make staging-admin ARGS="invite --label staging-manual --ttl 300"
+make staging-admin ARGS="list"
+make staging-down
+```
+
+### Medição de CPU/RAM
+
+Com duas sessões ativas e ociosas, colher três amostras no host:
+
+```bash
+docker stats --no-stream --format \
+  '{{.Name}} {{.CPUPerc}} {{.MemUsage}}' \
+  $(docker ps -q --filter label=launchpad.role=session \
+    --filter label=launchpad.project=launchpad)
+```
+
+Registrar também API, runtime e Caddy:
+
+```bash
+docker stats --no-stream --format \
+  '{{.Name}} {{.CPUPerc}} {{.MemUsage}}' \
+  ros2-launchpad-api ros2-launchpad-runtime
+```
+
+O tempo até `ready` deve ser observado no navegador externo (marcar o início
+no `POST /api/session` e o fim no estado “Pronto”), sem medir telemetria ou
+conteúdo do terminal. Para uma medição automatizada, usar o teste externo já
+executando e repetir as amostras depois que A/B estiverem prontos.
+
+### O que registrar em `docs/pilot-results.md`
+
+Preencher a seção “Validação no host” com:
+
+- data, commit, host, kernel, CPU/RAM/disco, Docker, Caddy;
+- A/AAAA e resolvedor externo; AAAA ausente é aceitável;
+- emissor, SAN, validade e `checkhost` do certificado;
+- health, redirect, HSTS e portas fechadas;
+- URLs `wss://` observadas no navegador externo;
+- tags de A/B, tempo até `ready`, CPU/RAM de duas sessões;
+- resultado de convite inválido, usado, revogado e terceiro `full`;
+- contagem de containers antes/depois do terceiro;
+- reconexão, pausa, retomada, fechamento e limpeza;
+- ausência de conteúdo do terminal, cookies, tokens e códigos nos logs;
+- pendências e falhas.
+
+Não registrar códigos, cookies, tokens, IPs de convidados ou saída do terminal.
+Os resultados de DNS, TLS, WSS externo, isolamento efetivo e métricas do host
+permanecem **pendentes** até serem medidos no servidor real.

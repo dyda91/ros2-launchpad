@@ -10,6 +10,7 @@ class Settings:
     run_dir: str
     max_sessions: int
     ros_domain_id: str
+    session_project: str
     session_read_only: bool
     session_tmpfs_size: str
     session_apparmor: str
@@ -29,6 +30,7 @@ class Settings:
             run_dir=os.environ.get("RUN_DIR", "/run/sessions"),
             max_sessions=int(os.environ.get("MAX_SESSIONS", "2")),
             ros_domain_id=os.environ.get("SESSION_ROS_DOMAIN_ID", "42"),
+            session_project=os.environ.get("SESSION_PROJECT", "launchpad"),
             session_read_only=os.environ.get("SESSION_READ_ONLY", "false").lower()
             in {"1", "true", "yes"},
             session_tmpfs_size=os.environ.get("SESSION_TMPFS_SIZE", "256m"),

@@ -220,6 +220,10 @@ consumo ocioso de **~270 MiB** e **63–65%** de um núcleo por sessão. Consult
 - Eventos JSONL derivados do progresso, sem conteúdo do terminal.
 - Templates de host: `deploy/Caddyfile`, `compose.pilot.yaml`,
   `deploy/pilot.env.example`, systemd e scripts de operação.
+- Teste Playwright externo com três contextos, lotação, retry, convite usado,
+  revogado e reconexão; verificação TLS com hostname, SAN, emissor e validade.
+- Staging isolado por projeto, estado, sockets, portas e labels, com TTL curto
+  para expiração.
 
 ### Critérios locais executados
 

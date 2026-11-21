@@ -16,6 +16,7 @@ ros2-launchpad/
 ├── README.md
 ├── compose.yaml
 ├── compose.pilot.yaml
+├── compose.pilot-staging.yaml
 ├── deploy/
 │   ├── Caddyfile
 │   ├── pilot.env.example
@@ -522,6 +523,12 @@ restaurados.
 - `test_pilot_store.py`: convite, hash, consumo, controle, rate limit e eventos.
 - `stage_pilot_acceptance.sh`: fluxo HTTP local do piloto.
 - `tests/e2e/pilot.spec.ts`: entrada por convite e sessão válida.
+- `tests/e2e/host-pilot.spec.ts`: três contextos, convite inválido/usado/
+  revogado, terceira sessão `full`, retry após liberar vaga, `wss` e reconexão.
+- `make staging-expiry`: projeto `ros2-launchpad-staging`, porta 18080,
+  `run/staging`, labels `launchpad.project=staging` e TTL curto.
+- `tests/integration/stage_staging_expiry.sh`: expiração curta no staging
+  isolado por `launchpad.project=staging`.
 - O aceite usa o simulador real, não telemetria simulada.
 
 ## Pendências de publicação

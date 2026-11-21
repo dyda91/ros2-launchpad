@@ -5,6 +5,12 @@ HOST_RUN_DIR ?= $(CURDIR)/run/sessions
 RUNTIME_TOKEN ?= dev-local-runtime-token
 E2E_IMAGE ?= ros2-launchpad-e2e:dev
 PILOT_COMPOSE ?= -f compose.yaml -f compose.pilot.yaml
+STAGING_PROJECT ?= ros2-launchpad-staging
+STAGING_PORT ?= 18080
+STAGING_COMPOSE ?= -f compose.yaml -f compose.pilot.yaml -f compose.pilot-staging.yaml
+STAGING_RUN_DIR ?= run/staging/sessions
+STAGING_PILOT_DIR ?= run/staging/pilot
+SESSION_PROJECT ?= launchpad
 MAX_SESSIONS ?= 2
 SESSION_TTL_SECONDS ?= 1800
 SESSION_IDLE_SECONDS ?= 600
@@ -12,7 +18,7 @@ SESSION_WARNING_SECONDS ?= 120
 SESSION_MONITOR_SECONDS ?= 2
 SESSION_ROS_DOMAIN_ID ?= 42
 
-.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-acceptance pilot-e2e clean
+.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
 
 help:
 	@printf '%s\n' \
@@ -39,6 +45,7 @@ help:
 		'pilot-down  para o piloto e remove as sessões' \
 		'pilot-admin executa o CLI de convites/controle' \
 		'pilot-verify valida pré-requisitos e HTTPS do piloto' \
+		'pilot-inspect inspeciona isolamento real dos containers' \
 		'pilot-acceptance testa convite, pausa e fechamento localmente' \
 		'clean       remove containers e artefatos gerados'
 
@@ -96,19 +103,21 @@ up: build build-app
 	exit 1
 
 down:
-	-ids=$$(docker ps -aq --filter label=launchpad.role=session); \
+	-ids=$$(docker ps -aq --filter label=launchpad.role=session \
+		--filter label=launchpad.project=$(SESSION_PROJECT)); \
 		if [ -n "$$ids" ]; then docker rm -f $$ids >/dev/null; fi
 	$(COMPOSE) down --remove-orphans
 	rm -rf run/sessions/*
 
 session-down:
-	$(MAKE) sessions-clean
+	$(MAKE) sessions-clean SESSION_PROJECT=$(SESSION_PROJECT)
 	$(COMPOSE) restart runtime api
 
 sessions-clean:
-	-ids=$$(docker ps -aq --filter label=launchpad.role=session); \
+	-ids=$$(docker ps -aq --filter label=launchpad.role=session \
+		--filter label=launchpad.project=$(SESSION_PROJECT)); \
 		if [ -n "$$ids" ]; then docker rm -f $$ids >/dev/null; fi
-	rm -rf run/sessions/*
+	rm -rf $(if $(filter launchpad,$(SESSION_PROJECT)),run/sessions/*,run/staging/sessions/*)
 
 e2e-image:
 	docker build -t $(E2E_IMAGE) -f tests/e2e/Dockerfile tests/e2e
@@ -185,7 +194,8 @@ pilot-up: build build-app
 	exit 1
 
 pilot-down:
-	-ids=$$(docker ps -aq --filter label=launchpad.role=session); \
+	-ids=$$(docker ps -aq --filter label=launchpad.role=session \
+		--filter label=launchpad.project=$(SESSION_PROJECT)); \
 		if [ -n "$$ids" ]; then docker rm -f $$ids >/dev/null; fi
 	$(COMPOSE) down --remove-orphans
 	rm -rf run/sessions/*
@@ -198,9 +208,16 @@ pilot-e2e: e2e-image
 		-e PILOT_INVITE_CODE="$(PILOT_INVITE_CODE)" $(E2E_IMAGE) \
 		npx playwright test pilot.spec.ts
 
+pilot-host-e2e: e2e-image
+	@test -n "$(PILOT_BASE_URL)" || (printf 'defina PILOT_BASE_URL\n' >&2; exit 1)
+	@docker run --rm $(if $(filter 1,$(PILOT_HOST_NETWORK)),--network host) --ipc host --shm-size=1g -e PILOT_BASE_URL="$(PILOT_BASE_URL)" -e PILOT_INVITE_A="$(PILOT_INVITE_A)" -e PILOT_INVITE_B="$(PILOT_INVITE_B)" -e PILOT_INVITE_C="$(PILOT_INVITE_C)" -e PILOT_INVITE_REVOKED="$(PILOT_INVITE_REVOKED)" $(E2E_IMAGE) npx playwright test host-pilot.spec.ts
+
 pilot-verify:
 	bash scripts/pilot-preflight.sh
 	bash scripts/pilot-verify.sh
+
+pilot-inspect:
+	SESSION_PROJECT=$(SESSION_PROJECT) bash scripts/pilot-inspect.sh
 
 pilot-acceptance: build-app
 	$(MAKE) sessions-clean
@@ -211,6 +228,55 @@ pilot-acceptance: build-app
 		COOKIE_SECURE=false SESSION_READ_ONLY=true SESSION_APPARMOR= \
 		bash tests/integration/stage_pilot_acceptance.sh
 	$(MAKE) pilot-down
+
+staging-up: build-app
+	$(MAKE) sessions-clean SESSION_PROJECT=staging
+	mkdir -p $(STAGING_RUN_DIR) $(STAGING_PILOT_DIR)
+	chmod 0775 $(STAGING_RUN_DIR) $(STAGING_PILOT_DIR)
+	PUBLIC_ORIGINS=http://127.0.0.1:$(STAGING_PORT),http://localhost:$(STAGING_PORT) \
+		RUN_HOST_DIR=$(STAGING_RUN_DIR) PILOT_HOST_DIR=$(STAGING_PILOT_DIR) \
+		HOST_RUN_DIR=$(CURDIR)/$(STAGING_RUN_DIR) RUNTIME_TOKEN=$(RUNTIME_TOKEN) \
+		APP_PORT=$(STAGING_PORT) SESSION_PROJECT=staging API_CONTAINER_NAME=ros2-launchpad-staging-api \
+		RUNTIME_CONTAINER_NAME=ros2-launchpad-staging-runtime \
+		$(COMPOSE) -p $(STAGING_PROJECT) $(STAGING_COMPOSE) up -d api runtime
+	@set -e; \
+	for attempt in $$(seq 1 40); do \
+		if curl -fsS "http://127.0.0.1:$(STAGING_PORT)/api/health" >/dev/null 2>&1; then \
+			printf 'staging pronto em http://localhost:%s\n' "$(STAGING_PORT)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	printf 'staging não respondeu\n' >&2; \
+	exit 1
+
+staging-down:
+	-ids=$$(docker ps -aq --filter label=launchpad.role=session \
+		--filter label=launchpad.project=staging); \
+		if [ -n "$$ids" ]; then docker rm -f $$ids >/dev/null; fi
+	PUBLIC_ORIGINS=http://127.0.0.1:$(STAGING_PORT),http://localhost:$(STAGING_PORT) \
+		RUN_HOST_DIR=$(STAGING_RUN_DIR) PILOT_HOST_DIR=$(STAGING_PILOT_DIR) \
+		HOST_RUN_DIR=$(CURDIR)/$(STAGING_RUN_DIR) RUNTIME_TOKEN=$(RUNTIME_TOKEN) \
+		APP_PORT=$(STAGING_PORT) SESSION_PROJECT=staging API_CONTAINER_NAME=ros2-launchpad-staging-api \
+		RUNTIME_CONTAINER_NAME=ros2-launchpad-staging-runtime \
+		$(COMPOSE) -p $(STAGING_PROJECT) $(STAGING_COMPOSE) down --remove-orphans
+	rm -rf $(STAGING_RUN_DIR)/*
+
+staging-admin:
+	PUBLIC_ORIGINS=http://127.0.0.1:$(STAGING_PORT),http://localhost:$(STAGING_PORT) \
+		RUN_HOST_DIR=$(STAGING_RUN_DIR) PILOT_HOST_DIR=$(STAGING_PILOT_DIR) \
+		HOST_RUN_DIR=$(CURDIR)/$(STAGING_RUN_DIR) RUNTIME_TOKEN=$(RUNTIME_TOKEN) \
+		APP_PORT=$(STAGING_PORT) SESSION_PROJECT=staging API_CONTAINER_NAME=ros2-launchpad-staging-api \
+		RUNTIME_CONTAINER_NAME=ros2-launchpad-staging-runtime \
+		$(COMPOSE) -p $(STAGING_PROJECT) $(STAGING_COMPOSE) exec -T api \
+		python -m app.pilot_admin $(ARGS)
+
+staging-expiry: staging-up
+	@set -e; \
+	trap '$(MAKE) staging-down >/dev/null 2>&1 || true' EXIT; \
+	BASE=http://127.0.0.1:$(STAGING_PORT) \
+		STAGING_CONTAINER=ros2-launchpad-staging-api \
+		bash tests/integration/stage_staging_expiry.sh
 
 stage3: stage1 test-mission test-api
 	$(COMPOSE) stop lab

@@ -145,6 +145,11 @@ make pilot-admin ARGS="invite --label guest-1 --ttl 7200"
 make pilot-verify        # host, DNS, TLS e health
 make pilot-acceptance    # aceite local com prazos curtos
 make pilot-e2e PILOT_INVITE_CODE=...  # Playwright da entrada
+make pilot-host-e2e PILOT_BASE_URL=... PILOT_INVITE_A=... \
+  PILOT_INVITE_B=... PILOT_INVITE_C=... PILOT_INVITE_REVOKED=...
+make staging-up         # piloto isolado em 127.0.0.1:18080
+make staging-expiry     # expiração curta com estado próprio
+make staging-down
 ```
 
 O host recomendado é uma VM Ubuntu Server 24.04 com Docker rootless, Caddy 2,
@@ -169,7 +174,12 @@ make pilot-up    # API/runtime com convite e hardening
 make pilot-down  # encerra o piloto e remove as sessões
 make pilot-admin # CLI de convites/controle
 make pilot-verify # pré-requisitos e HTTPS do host
+make pilot-inspect # isolamento real dos containers
 make pilot-acceptance # aceite local do piloto
+make pilot-host-e2e # Playwright externo com três convites
+make staging-up # piloto isolado com TTL curto
+make staging-expiry # valida expiração curta
+make staging-down # limpa o staging
 make e2e         # Playwright completo: 2A + Primeiro Turno
 make stage3      # Etapa 1 + conteúdo/API + aplicação + Playwright
 ```
@@ -318,6 +328,7 @@ apps/runtime/                               controlador do Docker
 apps/web/                                   React + TypeScript + Vite
 apps/web/src/components/MissionPanel.tsx    painel dos quatro desafios
 compose.pilot.yaml                          convite, estado e hardening
+compose.pilot-staging.yaml                  staging isolado com TTL curto
 specs/001-primeiro-turno/                   spec, plan e tasks
 tests/integration/                          aceite real
 tests/e2e/                                  Playwright

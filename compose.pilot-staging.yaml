@@ -1,0 +1,24 @@
+services:
+  runtime:
+    container_name: ros2-launchpad-staging-runtime
+    environment:
+      SESSION_PROJECT: "staging"
+      SESSION_ROS_DOMAIN_ID: "62"
+      SESSION_READ_ONLY: "true"
+      SESSION_APPARMOR: ""
+
+  api:
+    container_name: ros2-launchpad-staging-api
+    environment:
+      PUBLIC_ORIGINS: "http://127.0.0.1:18080,http://localhost:18080"
+      COOKIE_SECURE: "false"
+      MAX_SESSIONS: "2"
+      SESSION_TTL_SECONDS: "120"
+      SESSION_IDLE_SECONDS: "30"
+      SESSION_WARNING_SECONDS: "5"
+      SESSION_MONITOR_SECONDS: "1"
+      PILOT_TRUST_FORWARDED: "true"
+      PILOT_INVITE_TTL_SECONDS: "600"
+      PILOT_ACCESS_TTL_SECONDS: "600"
+      PILOT_RATE_LIMIT: "30"
+      PILOT_RATE_WINDOW_SECONDS: "900"

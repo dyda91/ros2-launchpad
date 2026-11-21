@@ -24,15 +24,24 @@ class DockerBackend:
     def _host_session_dir(self, session_id):
         return os.path.join(self.settings.host_run_dir, session_id)
 
+    def _labels(self, session_id=None):
+        labels = [
+            "launchpad.role=session",
+            f"launchpad.project={self.settings.session_project}",
+        ]
+        if session_id is not None:
+            labels.append(f"launchpad.session={session_id}")
+        return labels
+
     def _containers(self):
         return self.client.containers.list(
             all=True,
-            filters={"label": "launchpad.role=session"},
+            filters={"label": self._labels()},
         )
 
     def _running_containers(self):
         return self.client.containers.list(
-            filters={"label": "launchpad.role=session"}
+            filters={"label": self._labels()}
         )
 
     def active_count(self):
@@ -42,7 +51,7 @@ class DockerBackend:
     def _find(self, session_id):
         containers = self.client.containers.list(
             all=True,
-            filters={"label": f"launchpad.session={session_id}"},
+            filters={"label": self._labels(session_id)},
         )
         return containers[0] if containers else None
 
@@ -120,6 +129,7 @@ class DockerBackend:
             }
             labels = {
                 "launchpad.role": "session",
+                "launchpad.project": self.settings.session_project,
                 "launchpad.session": session_id,
                 "launchpad.managed": "true",
             }

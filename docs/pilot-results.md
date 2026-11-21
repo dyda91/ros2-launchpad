@@ -20,7 +20,9 @@ Data: 2026-11-21.
 | `make test-pilot` | **5/5 OK** |
 | `make pilot-acceptance` | **OK**; convite, terceiro, progresso, pausa, close e limpeza |
 | `make pilot-e2e` (com `PILOT_INVITE_CODE`) | **2 passed em 21,9–22,2 s** |
-| `make stage2b` | **OK**; startup 6,24 s; Playwright 2B 2 passed |
+| `make pilot-host-e2e` local (3 contextos, full, retry, usado, revogado e reconexão) | **1 passed em 53,4–54,5 s** |
+| `make staging-expiry` | **OK**; sessão expirou, vaga liberada e container removido |
+| `make stage2b` | **OK**; startup 6,69 s; Playwright 2B 2 passed |
 | `make e2e` | **3 passed em 2,2–2,3 min** |
 | Integração 2A | **OK** |
 | Sessão read-only | **ready**; Gazebo e `/odom` funcionando |
@@ -40,14 +42,22 @@ Data: 2026-11-21.
 | Reconexão | OK | OK |
 | Expiração | OK | OK |
 
-## Ainda depende do host/domínio
+## Validação no host
 
-- Validação real de rootless, AppArmor e seccomp no host escolhido.
-- DNS, portas 80/443, certificado público e HSTS.
-- WebSocket `wss://` através do Caddy real.
-- Medição de CPU/RAM do host e comparação formal com o WSL.
-- Testes de falha no host: matar container, reiniciar API/runtime/Caddy.
-- Retenção e exportação dos eventos e logs do piloto.
+Preencher esta seção somente após executar o runbook em um servidor real e um
+navegador externo.
+
+| Verificação | Resultado | Pendente |
+|---|---|---|
+| Há A/AAAA? AAAA opcional | — | DNS |
+| Certificado, SAN, emissor e validade | — | TLS |
+| HTTP→HTTPS, HSTS e portas fechadas | — | DNS/host |
+| `wss://` terminal e telemetria externos | — | navegador externo/Caddy |
+| Três convites, lotação, retry, usado e revogado | — | host + convites |
+| Rootless, AppArmor, seccomp e inspeção real | — | host |
+| Tempo até `ready`, CPU e RAM com duas sessões | — | host |
+| Pausa, retomada, fechamento e limpeza | — | host |
+| Logs sem terminal/códigos/tokens | — | host |
 
 Até esses itens serem executados no host, o piloto deve ser tratado como
 **pronto para revisão local**, não como publicado.

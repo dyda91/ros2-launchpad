@@ -39,7 +39,7 @@ services:
       context: .
       dockerfile: apps/runtime/Dockerfile
     image: ros2-launchpad-runtime:dev
-    container_name: ros2-launchpad-runtime
+    container_name: ${RUNTIME_CONTAINER_NAME:-ros2-launchpad-runtime}
     environment:
       RUNTIME_TOKEN: "${RUNTIME_TOKEN:-dev-local-runtime-token}"
       LAB_IMAGE: ros2-launchpad-lab:dev
@@ -47,6 +47,7 @@ services:
       RUN_DIR: /run/sessions
       MAX_SESSIONS: "${MAX_SESSIONS:-2}"
       SESSION_ROS_DOMAIN_ID: "${SESSION_ROS_DOMAIN_ID:-42}"
+      SESSION_PROJECT: "${SESSION_PROJECT:-launchpad}"
       SESSION_READ_ONLY: "${SESSION_READ_ONLY:-false}"
       SESSION_TMPFS_SIZE: "${SESSION_TMPFS_SIZE:-256m}"
       SESSION_APPARMOR: "${SESSION_APPARMOR:-}"
@@ -55,7 +56,7 @@ services:
       SESSION_ULIMIT_FSIZE_MB: "${SESSION_ULIMIT_FSIZE_MB:-64}"
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
-      - ./run/sessions:/run/sessions
+      - ./${RUN_HOST_DIR:-run/sessions}:/run/sessions
     networks:
       - control
     healthcheck:
@@ -75,7 +76,7 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     image: ros2-launchpad-api:dev
-    container_name: ros2-launchpad-api
+    container_name: ${API_CONTAINER_NAME:-ros2-launchpad-api}
     user: "1000:1000"
     environment:
       RUNTIME_URL: http://runtime:8100
@@ -92,7 +93,7 @@ services:
       SESSION_WARNING_SECONDS: "${SESSION_WARNING_SECONDS:-120}"
       SESSION_MONITOR_SECONDS: "${SESSION_MONITOR_SECONDS:-2}"
     volumes:
-      - ./run/sessions:/run/sessions
+      - ./${RUN_HOST_DIR:-run/sessions}:/run/sessions
     ports:
       - "127.0.0.1:${APP_PORT:-8080}:8000"
     networks:

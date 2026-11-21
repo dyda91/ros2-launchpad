@@ -37,6 +37,16 @@ if command -v aa-status >/dev/null 2>&1; then
 else
   bad "aa-status não encontrado"
 fi
+if command -v caddy >/dev/null 2>&1; then
+  ok "Caddy $(caddy version 2>/dev/null | head -n 1)"
+  if systemctl is-active --quiet caddy 2>/dev/null; then
+    ok "serviço caddy ativo"
+  else
+    printf 'AVISO caddy ainda não está ativo; valide o Caddyfile antes de iniciar\n'
+  fi
+else
+  bad "Caddy não encontrado"
+fi
 if grep -q '^CONFIG_SECCOMP=y' "/boot/config-$(uname -r)" 2>/dev/null; then
   ok "seccomp no kernel"
 else
@@ -44,10 +54,15 @@ else
 fi
 if [[ -n "${PILOT_DOMAIN:-}" ]]; then
   ok "PILOT_DOMAIN=$PILOT_DOMAIN"
-  if getent ahosts "$PILOT_DOMAIN" >/dev/null 2>&1; then
-    ok "DNS resolve $PILOT_DOMAIN"
+  if getent ahostsv4 "$PILOT_DOMAIN" >/dev/null 2>&1; then
+    ok "DNS A resolve $PILOT_DOMAIN"
   else
-    bad "DNS não resolve $PILOT_DOMAIN"
+    bad "DNS A não resolve $PILOT_DOMAIN"
+  fi
+  if getent ahostsv6 "$PILOT_DOMAIN" >/dev/null 2>&1; then
+    ok "DNS AAAA resolve $PILOT_DOMAIN (opcional)"
+  else
+    printf 'AVISO sem AAAA para %s; IPv6 não será validado\n' "$PILOT_DOMAIN"
   fi
 else
   bad "PILOT_DOMAIN não definido"

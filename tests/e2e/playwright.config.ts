@@ -1,5 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
+const artifacts = process.env.PILOT_E2E_ARTIFACTS === "1";
+
 export default defineConfig({
   testDir: ".",
   timeout: 120_000,
@@ -10,10 +12,11 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"]],
   use: {
-    baseURL: "http://127.0.0.1:8080",
+    baseURL: process.env.PILOT_BASE_URL || "http://127.0.0.1:8080",
     headless: true,
     viewport: { width: 1280, height: 900 },
-    trace: "retain-on-failure",
-    screenshot: "only-on-failure"
+    trace: artifacts ? "retain-on-failure" : "off",
+    screenshot: artifacts ? "only-on-failure" : "off",
+    video: "off"
   }
 });

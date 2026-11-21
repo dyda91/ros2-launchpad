@@ -17,6 +17,6 @@ services:
       COOKIE_SECURE: "${COOKIE_SECURE:-true}"
       PUBLIC_ORIGINS: "${PUBLIC_ORIGINS:?defina PUBLIC_ORIGINS com a URL HTTPS}"
     volumes:
-      - ./run/sessions:/run/sessions
-      - ./run/pilot:/var/lib/launchpad/pilot
+      - ./${RUN_HOST_DIR:-run/sessions}:/run/sessions
+      - ./${PILOT_HOST_DIR:-run/pilot}:/var/lib/launchpad/pilot
     restart: unless-stopped
