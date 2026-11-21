@@ -14,6 +14,10 @@ class Settings:
     static_dir: str
     mission_file: str
     ready_timeout_seconds: float
+    session_ttl_seconds: int
+    session_idle_seconds: int
+    session_warning_seconds: int
+    monitor_interval_seconds: float
 
     @classmethod
     def from_env(cls):
@@ -32,7 +36,7 @@ class Settings:
             cookie_secure=os.environ.get("COOKIE_SECURE", "false").lower()
             in {"1", "true", "yes"},
             public_origins=origins,
-            max_sessions=int(os.environ.get("MAX_SESSIONS", "1")),
+            max_sessions=int(os.environ.get("MAX_SESSIONS", "2")),
             run_dir=os.environ.get("RUN_DIR", "/run/sessions"),
             static_dir=os.environ.get("STATIC_DIR", "/app/static"),
             mission_file=os.environ.get(
@@ -41,5 +45,17 @@ class Settings:
             ),
             ready_timeout_seconds=float(
                 os.environ.get("READY_TIMEOUT_SECONDS", "45")
+            ),
+            session_ttl_seconds=int(
+                os.environ.get("SESSION_TTL_SECONDS", "1800")
+            ),
+            session_idle_seconds=int(
+                os.environ.get("SESSION_IDLE_SECONDS", "600")
+            ),
+            session_warning_seconds=int(
+                os.environ.get("SESSION_WARNING_SECONDS", "120")
+            ),
+            monitor_interval_seconds=float(
+                os.environ.get("SESSION_MONITOR_SECONDS", "2")
             ),
         )

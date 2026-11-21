@@ -35,8 +35,9 @@ WSL.
 - **Reinício:** recria o container e a UDS; a UI descarta telemetria da sessão
   antiga por geração, mostra falha se o novo container não subir e permite nova
   tentativa. Cliques repetidos são bloqueados na UI e serializados na API.
-- **Progresso:** mantido em memória no navegador. Recarregar reinicia o painel;
-  reiniciar recria a sessão e volta à pose inicial.
+- **Progresso:** implementado inicialmente em memória no navegador. A Etapa
+  2B moveu o progresso para a API por sessão: recarregar restaura o painel;
+  reiniciar recria a sessão, zera o progresso e volta à pose inicial.
 - **Conteúdo:** `content/missions/primeiro-turno.yaml`; a API serve
   `GET /api/mission`; a interface renderiza os tipos `quiz`, `motion` e
   `delivery` sem hardcode dos textos, respostas, comandos ou dicas.
@@ -104,9 +105,9 @@ make test-api
 
 ## Observações e limites
 
-- A entrega continua local, em `127.0.0.1:8080`, com uma sessão.
-- Etapa 2B (sessões simultâneas, reconexão, expiração e publicação) permanece
-  pendente.
+- A entrega continua local, em `127.0.0.1:8080`; a Etapa 2B elevou para duas
+  sessões simultâneas, com reconexão, TTL e inatividade.
+- A publicação pública com TLS e o isolamento de piloto continuam pendentes.
 - A missão não persiste progresso entre recargas; o painel avisa isso.
 - A solução completa é opcional e calibrada para a pose após o desafio 3.
 - O Playwright usa `--network host` para alcançar o loopback do WSL; é um

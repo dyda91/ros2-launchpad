@@ -4,7 +4,7 @@
 
 - **Etapa 1:** implementada.
 - **Etapa 2A:** implementada.
-- **Etapa 2B:** planejada.
+- **Etapa 2B local:** implementada; publicação pública pendente.
 - **Etapa 3:** implementada.
 
 ## Estrutura do monorepo
@@ -44,15 +44,21 @@ ros2-launchpad/
 │   ├── stage1_acceptance.sh
 │   ├── stage2a_acceptance.sh
 │   ├── test_mission_content.py
-│   └── test_session_restart_failure.py
-├── tests/e2e/                  # Playwright 2A e 3
+│   ├── test_session_capacity.py
+│   ├── test_session_restart_failure.py
+│   ├── stage2b_acceptance.sh
+│   └── stage2b_measure.sh
+├── tests/e2e/                  # Playwright 2A, 2B e 3
 ├── docs/stage1-results.md
 ├── docs/stage2a-results.md
+├── docs/stage2b-results.md
 └── docs/stage3-results.md
 ```
 
 A Etapa 2A adicionou `apps/api`, `apps/runtime`, `apps/web`,
-`lab/image/agent` e `tests/e2e`. A Etapa 3 adicionou
+`lab/image/agent` e `tests/e2e`. A Etapa 2B adicionou capacidade para duas
+sessões, UDS e containers por ID, progresso no servidor, reconexão por offset,
+TTL/inatividade e reconciliação. A Etapa 3 adicionou
 `content/missions/primeiro-turno.yaml`, a missão guiada, o painel de desafios
 e a inserção segura de comandos.
 
@@ -208,7 +214,7 @@ Navegador (Windows) ── HTTP/WS ──► 127.0.0.1:8080
                                       │
                                       ▼
                                    apps/api (FastAPI)
-                                      ├── cookie de sessão, uma por vez
+                                      ├── cookie e progresso por sessão
                                       ├── serve o build React/Vite
                                       ├── HTTP interno + token ──► apps/runtime
                                       └── UDS /run/sessions/<id>/agent.sock
@@ -248,17 +254,20 @@ efêmero criado pelo runtime a partir da mesma imagem; não é o container `lab`
 - `DELETE /api/session` remove o container e a UDS; o runtime espera o
   container terminar. Uma nova sessão cria outro container e volta à pose
   inicial.
-- Se o navegador fechar sem encerrar, a sessão única permanece até
-  `make session-down`/`make down`; expiração automática fica para 2B.
+- Se o navegador fechar sem encerrar, a sessão permanece até a inatividade
+  de 10 min ou o TTL de 30 min; `make session-down` e `make down` continuam
+  disponíveis.
 
 ### Contratos da Etapa 2A
 
 ```text
 POST   /api/session       202 preparing | 409 full | 503 error
-GET    /api/session       idle | preparing | ready | full | error
+GET    /api/session       idle | preparing | ready | full | error | expired
+POST   /api/session/touch 204 | 409
+PUT    /api/session/progress 204 | 400 | 409
 DELETE /api/session       204
 GET    /api/map           map.json (409 antes de ready)
-GET    /api/health        api, runtime e estado da sessão
+GET    /api/health        api, runtime, ativas e limite
 WS     /ws/terminal       JSON input/output/resize, autenticado por cookie
 WS     /ws/telemetry      state/pose a 10 Hz, autenticado por cookie
 ```
@@ -267,6 +276,9 @@ WS     /ws/telemetry      state/pose a 10 Hz, autenticado por cookie
 POST   /v1/sessions       {session_id, agent_token} -> {uds_path,...}
 DELETE /v1/sessions/{id}
 GET    /v1/capacity
+GET    /v1/sessions
+GET    /v1/sessions/{id}
+POST   /v1/reconcile
 Authorization: Bearer RUNTIME_TOKEN
 ```
 
@@ -285,6 +297,67 @@ dados do container com `network none`.
   `http://localhost:8080/api/health` respondeu com saúde ok.
 - `make stage1` continua passando.
 
+
+## Etapa 2B — sessões simultâneas implementada
+
+### Arquitetura
+
+```text
+Navegador A ── cookie A ──┐
+Navegador B ── cookie B ──┤
+                          ▼
+                      apps/api
+               ├── lock de capacidade (2)
+               ├── progresso por sessão
+               ├── TTL/inatividade/aviso
+               └── UDS /run/sessions/<id>/agent.sock
+                          │
+          ┌───────────────┴───────────────┐
+          ▼                               ▼
+container ros2-launchpad-session-<A>  container <B>
+UDS, agente, ROS domain e GZ próprios UDS, agente, ROS domain e GZ próprios
+```
+
+- A API reserva a vaga sob `asyncio.Lock` antes de chamar o runtime; o runtime
+  repete a checagem. IDs, tokens, UDS, nomes e labels são exclusivos.
+- Cada container recebe `ROS_DOMAIN_ID` e `GZ_PARTITION` próprios. A sessão
+  continua em `network none`, UID 1000, sem Docker e com os limites da 2A.
+- O progresso é validado e mantido na API por sessão; o painel o envia em
+  cada mudança relevante e o restaura no carregamento.
+- O terminal usa buffer circular de 128 KiB e offsets. A reconexão envia
+  `since`; o agente responde `stream_start` + trecho faltante, ou `reset` +
+  últimos 128 KiB. A telemetria reconecta e publica eventos de ciclo de vida.
+- `_maintenance` expira inatividade/TTL, checa a saúde do agente, remove
+  containers e libera vagas. API/runtime reconciliam órfãos na inicialização.
+- Reiniciar mantém tag e vaga, mas recria container, token, pose e progresso.
+
+### Contratos
+
+```text
+MAX_SESSIONS=2
+SESSION_TTL_SECONDS=1800
+SESSION_IDLE_SECONDS=600
+SESSION_WARNING_SECONDS=120
+SESSION_MONITOR_SECONDS=2
+SESSION_ROS_DOMAIN_ID=42
+
+POST   /api/session/touch
+PUT    /api/session/progress
+WS     /ws/terminal?since=<bytes>
+WS     /ws/telemetry   pose, mission e lifecycle
+POST   /v1/reconcile
+GET    /v1/sessions
+```
+
+### Resultados
+
+- Integração: duas sessões, terceiro `full`, progresso isolado, aviso,
+  expiração, nova sessão, reinício e limpeza — OK.
+- Playwright 2B: 2 passed em 1,2 min.
+- Duas sessões prontas em 7,90 s e 6,85 s; ~270 MiB e 63–65% de um núcleo
+  cada, ociosas.
+- `make e2e` continua 3 passed em 2,3 min; `make stage1` OK em 6,79 s.
+- `make test-session-capacity` 8/8 e `test_session_restart_failure` 2/2.
 
 ## Etapa 3 — Primeiro Turno implementada
 
@@ -334,13 +407,13 @@ inserção.
 ### Reinício e falhas
 
 - `POST /api/session/restart` remove e recria o container/UDS; o progresso é
-  reiniciado e a nova sessão começa na pose inicial.
+  reiniciado e a nova sessão começa na pose inicial, mantendo a tag e a vaga.
 - A UI ignora telemetria da geração antiga, desabilita o botão durante a
   operação e descarta estado do painel.
 - Se a criação falhar, a API retorna erro; a UI mostra falha e permite nova
   tentativa (`test_session_restart_failure.py` + Playwright com 503).
-- O progresso é em memória; recarregar a página reinicia o painel, avisado na
-  interface.
+- O progresso é persistido na API por sessão desde a Etapa 2B; recarregar
+  restaura o painel, enquanto reiniciar zera o progresso.
 
 ### Conteúdo e solução
 
@@ -377,22 +450,28 @@ restaurados.
 - `test_mission_content.py`: schema, respostas, comandos e gancho.
 - `test_session_restart_failure.py`: limpeza antiga + falha do novo container +
   retry.
+- `test_session_capacity.py`: duas vagas, reserva atômica, progresso isolado,
+  TTL, inatividade, aviso e reconciliação.
+- `stage2b_acceptance.sh`: API real com duas sessões, terceiro `full`,
+  progresso, expiração, reinício e limpeza.
+- `tests/e2e/stage2b.spec.ts`: dois contextos, terceiro `full`, reload,
+  reconexão de terminal e expiração.
+- `stage2b_measure.sh`: tempo de prontidão, containers, memória e CPU.
 - O aceite usa o simulador real, não telemetria simulada.
 
-## Contratos futuros (Etapa 2B)
+## Pendências de publicação
 
-- Segunda sessão simultânea e limite configurável.
-- Reconexão automática do terminal/telemetria e replay de buffer.
-- TTL de 30 min, inatividade de 10 min e limpeza automática.
-- Playwright com dois contextos e isolamento entre sessões.
-- Publicação pública com TLS e isolamento de piloto.
+- Publicação pública com TLS, autenticação de visitantes e proteção contra
+  abuso.
+- Validação de isolamento de shells anônimos com rootless/VM, seccomp,
+  AppArmor e auditoria.
 
 ## Riscos e decisões pendentes
 
-- A memória do WSL é 7,7 GiB; a Etapa 2B deve medir uma e duas sessões antes de
-  elevar o limite. Alterar `.wslconfig` exige autorização.
+- A memória do WSL é 7,7 GiB; duas sessões foram medidas em ~270 MiB cada.
+  Elevar o limite exige nova medição e autorização para alterar `.wslconfig`.
 - O startup final das Etapas 1/2A ficou em 6,25–6,28 s; a missão 3 usa a mesma
   sessão.
 - O aviso KDL do link raiz com inércia é conhecido e não afeta a simulação.
-- A sessão 2A ociosa usa ~0,74 núcleo e ~270 MiB; a Etapa 2B deve medir duas
-  sessões e ajustar o passo de física se necessário.
+- Cada sessão ociosa usa ~0,63–0,65 núcleo e ~270 MiB. Duas sessões
+  simultâneas ficaram estáveis no WSL.

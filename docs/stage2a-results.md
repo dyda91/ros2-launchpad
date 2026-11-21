@@ -42,7 +42,7 @@ Navegador em 127.0.0.1:8080
         ▼
 API FastAPI (porta interna 8000)
   - cookie HttpOnly
-  - uma sessão por vez
+  - uma sessão por vez na Etapa 2A; a 2B eleva para duas
   - proxy de terminal e telemetria
         │
         ├── HTTP interno com token ──► runtime (Docker socket)
@@ -149,7 +149,7 @@ docker exec -u 1000 ros2-launchpad-session bash -lc \
 - O container de sessão não monta `/tests`, `/content` nem o repositório; só a
   própria UDS.
 - A sessão é única. Um segundo navegador recebe `full`.
-- Sem reconexão automática, expiração por inatividade ou publicação pública
+- Na Etapa 2A não havia reconexão automática, expiração ou publicação; a 2B local adiciona reconexão, TTL e inatividade. A publicação pública continua pendente
   nesta entrega.
 - Se o navegador fechar sem encerrar, a sessão permanece até
   `make session-down` ou `make down`.

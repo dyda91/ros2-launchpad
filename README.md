@@ -10,10 +10,13 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
   watchdog — implementada e validada.
 - **Etapa 2A:** sessão local única no navegador, terminal real e Canvas 2D —
   implementada e validada.
+- **Etapa 2B local:** duas sessões simultâneas, progresso por sessão,
+  reconexão de terminal/telemetria, TTL, inatividade, aviso e limpeza —
+  implementada e validada.
 - **Etapa 3:** missão guiada "Primeiro Turno", quatro desafios, inserção segura
   de comandos, validação da entrega e reinício — implementada e validada.
-- **Etapa 2B:** sessões simultâneas, reconexão, expiração e publicação —
-  pendente.
+- **Piloto público:** publicação TLS, autenticação de visitantes e isolamento
+  reforçado — pendente.
 
 ## O que funciona
 
@@ -22,7 +25,8 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
 - Armazém de 8 × 6 m gerado de `content/world/armazem.yaml`.
 - `/cmd_vel` e `/odom` reais; watchdog de 0,5 s.
 - Página React/TypeScript/Vite em `http://localhost:8080`.
-- Sessão única criada pelo clique em “Iniciar laboratório”.
+- Até duas sessões anônimas simultâneas criadas pelo clique em “Iniciar
+  laboratório”, com containers, UDS, ROS graph e progresso próprios.
 - Terminal xterm.js conectado a um PTY bash real dentro do container da
   sessão.
 - Visor Canvas 2D com o mesmo `map.json` do simulador e pose real de `/odom`.
@@ -30,10 +34,14 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
 - Validação da entrega pelo `mission_monitor` real; passar pela zona em
   movimento não conclui.
 - Reinício da missão que recria o container e volta à pose inicial.
-- Encerramento que remove o container e libera uma nova sessão.
+- Encerramento que remove o container e libera a vaga.
+- Reconexão automática do terminal e da telemetria; progresso restaurado ao
+  recarregar a página.
+- Expiração por 10 min de inatividade ou 30 min de TTL, com aviso 2 min antes
+  e liberação automática da vaga.
 
-O acesso é apenas local, em loopback. Não há cadastro, publicação, LiDAR,
-SLAM, Nav2, visor 3D ou missão guiada nesta entrega.
+O acesso é apenas local, em loopback. Não há cadastro, publicação, TLS, LiDAR,
+SLAM, Nav2 ou visor 3D nesta entrega. A publicação pública continua pendente.
 
 ## Pré-requisitos no WSL
 
@@ -76,7 +84,8 @@ Para parar:
 make down
 ```
 
-Se o navegador fechar sem encerrar a sessão:
+Se o navegador fechar sem encerrar a sessão, a vaga é liberada pela
+inatividade/TTL. Para forçar a limpeza:
 
 ```bash
 make session-down
@@ -114,15 +123,20 @@ no painel. No desafio 4, a entrega só é confirmada quando o robô para dentro
 da zona por 2 s. Use **Reiniciar missão** para recriar a sessão e voltar ao
 desafio 1; **Encerrar sessão** libera a vaga.
 
-O progresso fica em memória: recarregar a página reinicia o painel.
+O progresso fica guardado na API por sessão: recarregar a página restaura o
+painel; **Reiniciar missão** zera o progresso e recria o container. A sessão
+expira após 10 min sem atividade ou 30 min no total.
 
 ## Aceite
 
 ```bash
 make stage1      # regressão da Etapa 1
 make stage2a     # Etapa 1 + integração 2A + Playwright 2A
+make stage2b     # Etapa 1 + integração 2B + Playwright 2B
+make measure-2b  # mede duas sessões simultâneas
 make test-mission # schema e conteúdo da missão
 make test-api    # falha do novo container e retry
+make test-session-capacity # capacidade, progresso, TTL e reconciliação
 make e2e         # Playwright completo: 2A + Primeiro Turno
 make stage3      # Etapa 1 + conteúdo/API + aplicação + Playwright
 ```
@@ -132,6 +146,11 @@ inserção com texto já digitado, `ros2 topic echo` em execução, passagem pel
 zona em movimento, conclusão após a parada, reinício com pose e painel
 restaurados e a falha de reinício com nova tentativa.
 
+O `make stage2b` usa prazos curtos (TTL 90 s, inatividade 15 s, aviso 5 s) e
+valida duas sessões isoladas, terceiro navegador `full`, progresso, reload,
+reconexão do terminal e expiração. Ele é separado do `make e2e`, que mantém os
+prazos normais.
+
 O Playwright usa Chromium headless em um container de teste com
 `--network host` para alcançar o loopback do WSL.
 
@@ -140,13 +159,16 @@ O Playwright usa Chromium headless em um container de teste com
 Etapa 1: startup **6,25–6,28 s** na rodada final, parada **0,400 s**,
 ~**67–70%** de um núcleo e **~258 MiB** ociosa. Etapa 2A: sessão pronta em
 **7,26 s**, Playwright 2A **1 passed em ~48 s**, sessão ociosa **73,81%** de um
-núcleo e **269,9 MiB**. Etapa 3: `make e2e` **3 passed em 2,4 min**; entrega
+núcleo e **269,9 MiB**. Etapa 2B: duas sessões prontas em **7,90 s** e
+**6,85 s**; ~**270 MiB** e **63–65%** de um núcleo cada; Playwright 2B
+**2 passed em 1,2 min**. Etapa 3: `make e2e` **3 passed em 2,3 min**; entrega
 validada pelo monitor real.
 
 Detalhes:
 
 - [`docs/stage1-results.md`](docs/stage1-results.md)
 - [`docs/stage2a-results.md`](docs/stage2a-results.md)
+- [`docs/stage2b-results.md`](docs/stage2b-results.md)
 - [`docs/stage3-results.md`](docs/stage3-results.md)
 
 ## Arquitetura
@@ -158,9 +180,9 @@ Navegador do Windows
         ▼
   apps/api (FastAPI, 127.0.0.1:8080)
     - serve o build React/Vite
-    - cookie HttpOnly, sessão única
-    - GET /api/mission e POST /api/session/restart
-    - proxy de terminal e telemetria
+    - cookie HttpOnly e progresso por sessão
+    - GET /api/mission, POST /api/session/restart, touch e progress
+    - proxy de terminal (com resume) e telemetria (com lifecycle)
         ├── HTTP interno + token ──► apps/runtime (Docker socket)
         │                              └── cria/recria/remove a sessão
         └── UDS /run/sessions/<id>/agent.sock
@@ -178,7 +200,8 @@ Apenas `apps/runtime` recebe `/var/run/docker.sock`. A API não tem Docker. O
 navegador não acessa runtime, UDS ou Docker. O container da sessão roda como
 UID 1000, com `cap_drop: ALL`, `no-new-privileges`, 2 GiB, 2 CPUs, 256 PIDs,
 sem rede externa e sem socket Docker. Ele monta somente o próprio diretório de
-UDS em `/run/agent`.
+UDS em `/run/agent`. Cada sessão tem `ROS_DOMAIN_ID` e `GZ_PARTITION` próprios,
+nome de container e labels exclusivos.
 
 O serviço `lab` continua sendo o laboratório manual da Etapa 1. A sessão web
 usa um container efêmero criado a partir da mesma imagem.
@@ -223,14 +246,17 @@ make stage1
 make build       # imagem do laboratório
 make build-app   # imagens da API e do runtime
 make up          # aplicação em 127.0.0.1:8080
-make down        # para tudo e remove a sessão
-make session-down # força a remoção da sessão e reinicia API/runtime
+make down        # para tudo e remove as sessões
+make session-down # força a remoção das sessões e reinicia API/runtime
 make stage1      # aceite da Etapa 1
 make stage2a     # aceite da Etapa 2A
+make stage2b     # aceite da Etapa 2B local
+make measure-2b  # medição de duas sessões
 make stage3      # aceite da missão Primeiro Turno
-make e2e         # Playwright completo
+make e2e         # Playwright completo (2A + missão)
 make test-mission # conteúdo da missão
 make test-api    # restart com falha e retry
+make test-session-capacity # capacidade, progresso, TTL e reconciliação
 make lab-up      # laboratório manual
 make lab-shell   # shell no laboratório manual
 make lab-logs    # logs do laboratório manual
@@ -262,10 +288,10 @@ docs/                                       resultados medidos
 
 ## Falhas comuns
 
-**“Laboratório em uso”**
+**“As duas vagas estão em uso”**
 
-A entrega tem uma sessão por vez. Encerre a sessão no outro navegador ou use
-`make session-down`.
+A entrega permite duas sessões simultâneas. Encerre uma sessão em outro
+navegador ou aguarde a inatividade/TTL; para forçar, use `make session-down`.
 
 **Sessão presa após fechar o navegador**
 
@@ -273,8 +299,8 @@ A entrega tem uma sessão por vez. Encerre a sessão no outro navegador ou use
 make session-down
 ```
 
-Isso remove o container e reinicia API/runtime. A expiração automática fica
-para a Etapa 2B.
+Isso remove todas as sessões e reinicia API/runtime. Sem o comando, a vaga é
+liberada pela inatividade de 10 min ou pelo TTL de 30 min.
 
 **A entrega não conclui**
 
@@ -295,8 +321,9 @@ use `make session-down` ou `make down`.
 
 **Recarregar perdeu o progresso**
 
-O progresso é em memória nesta entrega; recarregar reinicia o painel. Para
-restaurar a pose também, use **Reiniciar missão**.
+O progresso é guardado na API por sessão. Verifique se a sessão ainda está
+`ready`; depois de expirar ou reiniciar o container, o progresso começa do
+primeiro desafio.
 
 **Aplicação não responde em 8080**
 
@@ -329,7 +356,8 @@ Faça isso apenas com autorização; é uma mudança no sistema.
 Veja os logs do agente:
 
 ```bash
-docker logs ros2-launchpad-session
+docker ps -a --filter label=launchpad.role=session
+docker logs <nome-do-container-ros2-launchpad-session-id>
 docker compose logs --tail=100 runtime api
 ```
 
@@ -352,11 +380,12 @@ powershell.exe -NoProfile -Command \
 
 ## Limitações desta entrega
 
-- Uma sessão simultânea; o segundo navegador recebe “Laboratório em uso”.
-- Sem reconexão automática, expiração, TTL ou limpeza por inatividade
-  (Etapa 2B).
+- Duas sessões simultâneas; o terceiro navegador recebe “Laboratório cheio”.
+- A reconexão de terminal/telemetria e a expiração por inatividade/TTL fazem
+  parte da 2B local.
 - Sem publicação pública, TLS, cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
-- O progresso da missão é em memória e reinicia ao recarregar.
+- O progresso da missão sobrevive a recarregar, mas reinicia no reinício da
+  missão e ao reiniciar API/runtime.
 - A solução completa é opcional e calibrada para a pose após o desafio 3.
 - O perfil local não é um piloto público. O isolamento para shells anônimos
   exige validação adicional (rootless/VM, seccomp/AppArmor, auditoria).

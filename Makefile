@@ -4,8 +4,14 @@ APP_PORT ?= 8080
 HOST_RUN_DIR ?= $(CURDIR)/run/sessions
 RUNTIME_TOKEN ?= dev-local-runtime-token
 E2E_IMAGE ?= ros2-launchpad-e2e:dev
+MAX_SESSIONS ?= 2
+SESSION_TTL_SECONDS ?= 1800
+SESSION_IDLE_SECONDS ?= 600
+SESSION_WARNING_SECONDS ?= 120
+SESSION_MONITOR_SECONDS ?= 2
+SESSION_ROS_DOMAIN_ID ?= 42
 
-.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-mission test-api stage1 up down session-down e2e e2e-image e2e-2a e2e-3 stage2a stage3 stage2a-clean clean
+.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-mission test-api test-session-capacity stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-3 stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b clean
 
 help:
 	@printf '%s\n' \
@@ -24,7 +30,9 @@ help:
 		'test-mission valida o conteúdo da missão' \
 		'test-api    testa falha/retry do restart da sessão' \
 		'stage2a     executa o aceite completo da Etapa 2A' \
+		'stage2b     executa o aceite multi-sessão, reconexão e expiração' \
 		'stage3      executa o aceite da missão Primeiro Turno' \
+		'measure-2b  mede dois simuladores simultâneos' \
 		'clean       remove containers e artefatos gerados'
 
 build:
@@ -62,6 +70,12 @@ up: build build-app
 	mkdir -p $(HOST_RUN_DIR)
 	chmod 0775 $(HOST_RUN_DIR)
 	HOST_RUN_DIR=$(HOST_RUN_DIR) RUNTIME_TOKEN=$(RUNTIME_TOKEN) \
+		MAX_SESSIONS=$(MAX_SESSIONS) \
+		SESSION_TTL_SECONDS=$(SESSION_TTL_SECONDS) \
+		SESSION_IDLE_SECONDS=$(SESSION_IDLE_SECONDS) \
+		SESSION_WARNING_SECONDS=$(SESSION_WARNING_SECONDS) \
+		SESSION_MONITOR_SECONDS=$(SESSION_MONITOR_SECONDS) \
+		SESSION_ROS_DOMAIN_ID=$(SESSION_ROS_DOMAIN_ID) \
 		$(COMPOSE) up -d api runtime
 	@set -e; \
 	for attempt in $$(seq 1 40); do \
@@ -75,20 +89,26 @@ up: build build-app
 	exit 1
 
 down:
-	-docker rm -f ros2-launchpad-session >/dev/null 2>&1 || true
+	-ids=$$(docker ps -aq --filter label=launchpad.role=session); \
+		if [ -n "$$ids" ]; then docker rm -f $$ids >/dev/null; fi
 	$(COMPOSE) down --remove-orphans
 	rm -rf run/sessions/*
 
 session-down:
-	-docker rm -f ros2-launchpad-session >/dev/null 2>&1 || true
-	rm -rf run/sessions/*
+	$(MAKE) sessions-clean
 	$(COMPOSE) restart runtime api
+
+sessions-clean:
+	-ids=$$(docker ps -aq --filter label=launchpad.role=session); \
+		if [ -n "$$ids" ]; then docker rm -f $$ids >/dev/null; fi
+	rm -rf run/sessions/*
 
 e2e-image:
 	docker build -t $(E2E_IMAGE) -f tests/e2e/Dockerfile tests/e2e
 
 e2e: up e2e-image stage2a-clean
-	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE)
+	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) \
+		npx playwright test stage2a.spec.ts stage3.spec.ts
 
 e2e-2a: up e2e-image stage2a-clean
 	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) npx playwright test stage2a.spec.ts
@@ -97,28 +117,50 @@ e2e-3: up e2e-image stage2a-clean
 	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) npx playwright test stage3.spec.ts
 
 stage2a-clean:
-	-docker rm -f ros2-launchpad-session >/dev/null 2>&1 || true
-	rm -rf run/sessions/*
+	$(MAKE) sessions-clean
+	$(COMPOSE) restart runtime api >/dev/null
+	sleep 2
+
+stage2b-clean:
+	$(MAKE) sessions-clean
 	$(COMPOSE) restart runtime api >/dev/null
 	sleep 2
 
 stage2a: stage1
 	$(COMPOSE) stop lab
+	$(MAKE) sessions-clean
 	$(MAKE) up
 	bash tests/integration/stage2a_acceptance.sh
 	$(MAKE) e2e-2a
 
+stage2b: stage1
+	$(COMPOSE) stop lab
+	$(MAKE) sessions-clean
+	$(MAKE) up MAX_SESSIONS=2 SESSION_TTL_SECONDS=90 \
+		SESSION_IDLE_SECONDS=15 SESSION_WARNING_SECONDS=5 \
+		SESSION_MONITOR_SECONDS=1
+	bash tests/integration/stage2b_acceptance.sh
+	$(MAKE) e2e-2b
+
+e2e-2b: e2e-image
+	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) \
+		npx playwright test stage2b.spec.ts
+
+measure-2b: sessions-clean
+	$(MAKE) up
+	bash tests/integration/stage2b_measure.sh
+
 stage3: stage1 test-mission test-api
 	$(COMPOSE) stop lab
+	$(MAKE) sessions-clean
 	$(MAKE) up
 	bash tests/integration/stage2a_acceptance.sh
 	$(MAKE) e2e
 
 clean:
-	$(COMPOSE) down --remove-orphans
+	$(MAKE) down
 	rm -f lab/ros_ws/src/launchpad_sim/worlds/armazem.sdf \
 		lab/ros_ws/src/launchpad_sim/config/map.json
-	rm -rf run/sessions/*
 
 test-mission: build-app
 	docker run --rm \
@@ -134,3 +176,10 @@ test-api: build-app
 		-v "$(CURDIR)/apps/api:/app" \
 		-w /app ros2-launchpad-api:dev \
 		python /tests/integration/test_session_restart_failure.py -v
+
+test-session-capacity: build-app
+	docker run --rm \
+		-v "$(CURDIR)/tests:/tests:ro" \
+		-v "$(CURDIR)/apps/api:/app" \
+		-w /app ros2-launchpad-api:dev \
+		python /tests/integration/test_session_capacity.py -v

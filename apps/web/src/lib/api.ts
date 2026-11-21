@@ -1,4 +1,9 @@
-import type { MapData, MissionContent, SessionStatus } from "../types";
+import type {
+  MapData,
+  MissionContent,
+  MissionProgress,
+  SessionStatus
+} from "../types";
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json();
@@ -36,6 +41,22 @@ export async function restartSession(): Promise<SessionStatus> {
     credentials: "same-origin"
   });
   return parseResponse<SessionStatus>(response);
+}
+
+export async function touchSession(): Promise<void> {
+  await fetch("/api/session/touch", {
+    method: "POST",
+    credentials: "same-origin"
+  });
+}
+
+export async function saveProgress(progress: MissionProgress): Promise<void> {
+  await fetch("/api/session/progress", {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ progress })
+  });
 }
 
 export async function getMission(): Promise<MissionContent> {

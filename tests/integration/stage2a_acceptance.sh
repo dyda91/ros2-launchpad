@@ -5,7 +5,16 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 BASE="${BASE:-http://127.0.0.1:8080}"
 COOKIE="${COOKIE:-/tmp/ros2-launchpad-stage2a-cookies.txt}"
-SESSION_NAME="${SESSION_NAME:-ros2-launchpad-session}"
+SESSION_NAME="${SESSION_NAME:-}"
+
+session_container() {
+  if [ -n "$SESSION_NAME" ]; then
+    printf '%s' "$SESSION_NAME"
+    return 0
+  fi
+  docker ps -a --filter label=launchpad.role=session --format '{{.Names}}' |
+    head -n 1
+}
 rm -f "$COOKIE"
 
 fail() {
@@ -77,7 +86,10 @@ assert payload["world"] == "armazem", payload
 assert payload["zone"]["id"] == "coleta", payload
 print("mapa ok:", payload["world"], payload["zone"]["id"])
 PY
-docker exec -u 1000 "$SESSION_NAME" bash -lc \
+SESSION_CONTAINER="$(session_container)"
+[ -n "$SESSION_CONTAINER" ] || fail "container da sessão não encontrado"
+printf 'container: %s\n' "$SESSION_CONTAINER"
+docker exec -u 1000 "$SESSION_CONTAINER" bash -lc \
   'source /opt/ros/jazzy/setup.bash; source /ros_ws/install/setup.bash;
    ros2 topic list; ros2 topic type /cmd_vel; ros2 topic type /odom' \
   > /tmp/ros2-launchpad-stage2a-topics.txt
@@ -87,18 +99,18 @@ grep -q 'geometry_msgs/msg/Twist' /tmp/ros2-launchpad-stage2a-topics.txt
 grep -q 'nav_msgs/msg/Odometry' /tmp/ros2-launchpad-stage2a-topics.txt
 
 printf '\n[3/5] isolamento do container\n'
-INSPECT="$(docker inspect "$SESSION_NAME" --format '{{.HostConfig.NetworkMode}} {{.HostConfig.Memory}} {{.HostConfig.NanoCpus}} {{.HostConfig.PidsLimit}}')"
+INSPECT="$(docker inspect "$SESSION_CONTAINER" --format '{{.HostConfig.NetworkMode}} {{.HostConfig.Memory}} {{.HostConfig.NanoCpus}} {{.HostConfig.PidsLimit}}')"
 printf 'inspect: %s\n' "$INSPECT"
 [[ "$INSPECT" == "none 2147483648 2000000000 256" ]] || fail "limites ou rede inesperados"
-docker exec -u 1000 "$SESSION_NAME" bash -lc 'test ! -e /var/run/docker.sock'
-docker exec -u 1000 "$SESSION_NAME" bash -lc 'ip -brief addr' | tee /tmp/ros2-launchpad-stage2a-net.txt
+docker exec -u 1000 "$SESSION_CONTAINER" bash -lc 'test ! -e /var/run/docker.sock'
+docker exec -u 1000 "$SESSION_CONTAINER" bash -lc 'ip -brief addr' | tee /tmp/ros2-launchpad-stage2a-net.txt
 if grep -qE '^[^l]' /tmp/ros2-launchpad-stage2a-net.txt; then
   fail "interface de rede inesperada"
 fi
 
 printf '\n[4/5] encerrando e liberando\n'
 stop_session
-if docker ps -a --filter "name=$SESSION_NAME" --format '{{.Names}}' | grep -q .; then
+if docker ps -a --filter label=launchpad.role=session --format '{{.Names}}' | grep -q .; then
   fail "container da sessão não foi removido"
 fi
 if find run/sessions -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then

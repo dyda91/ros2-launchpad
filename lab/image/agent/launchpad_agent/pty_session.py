@@ -18,6 +18,8 @@ class PtySession:
         self.pid = None
         self.clients = set()
         self.buffer = bytearray()
+        self.offset = 0
+        self.buffer_start = 0
         self._scan_buffer = bytearray()
         self.at_prompt = False
         self.line_empty = True
@@ -64,8 +66,10 @@ class PtySession:
             self.close()
             return
         self.buffer.extend(data)
+        self.offset += len(data)
         if len(self.buffer) > 131072:
             del self.buffer[:-131072]
+        self.buffer_start = self.offset - len(self.buffer)
         self._scan_for_prompt(data)
         text = data.decode("utf-8", "replace")
         for client in list(self.clients):
@@ -111,15 +115,26 @@ class PtySession:
                 continue
             self.loop.create_task(client.send_str(payload))
 
-    async def add_client(self, client, cols=80, rows=24):
+    async def add_client(self, client, cols=80, rows=24, since=None):
         self.ensure(self.loop or asyncio.get_running_loop(), cols, rows)
         self.clients.add(client)
-        if self.buffer:
+        reset = True
+        start = self.buffer_start
+        if isinstance(since, int) and self.buffer_start <= since <= self.offset:
+            reset = False
+            start = since
+        if reset:
+            await client.send_str(json.dumps({"type": "reset"}))
+        await client.send_str(
+            json.dumps({"type": "stream_start", "offset": start})
+        )
+        data = bytes(self.buffer[start - self.buffer_start :])
+        if data:
             await client.send_str(
                 json.dumps(
                     {
                         "type": "output",
-                        "data": self.buffer.decode("utf-8", "replace"),
+                        "data": data.decode("utf-8", "replace"),
                     }
                 )
             )

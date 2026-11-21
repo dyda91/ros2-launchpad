@@ -85,65 +85,112 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(
       terminal.focus();
 
       let active = true;
-      const socket = new WebSocket(wsUrl(wsPath));
-      socketRef.current = socket;
-      socket.onopen = () => {
+      let reconnectTimer: number | null = null;
+      let socket: WebSocket | null = null;
+      let disconnected = false;
+      const encoder = new TextEncoder();
+      const offset = { value: 0 };
+
+      function scheduleReconnect() {
+        if (!active || reconnectTimer !== null) {
+          return;
+        }
+        reconnectTimer = window.setTimeout(() => {
+          reconnectTimer = null;
+          connect();
+        }, 1200);
+      }
+
+      function connect() {
         if (!active) {
           return;
         }
-        fit.fit();
-        socket.send(
-          JSON.stringify({
-            type: "resize",
-            cols: terminal.cols,
-            rows: terminal.rows
-          })
+        const current = new WebSocket(
+          wsUrl(`${wsPath}?since=${offset.value}`)
         );
-        terminal.focus();
-      };
-      socket.onmessage = (event) => {
-        if (!active) {
-          return;
-        }
-        try {
-          const message = JSON.parse(event.data as string);
-          if (message.type === "output") {
-            terminal.write(message.data as string);
-          } else if (message.type === "terminal_state") {
-            terminalStateCallback.current?.({
-              prompt: Boolean(message.prompt),
-              lineEmpty: Boolean(message.lineEmpty),
-              running: Boolean(message.running)
-            });
-          } else if (message.type === "insert_result") {
-            insertResultCallback.current?.({
-              ok: Boolean(message.ok),
-              reason: String(message.reason ?? "")
-            });
+        socket = current;
+        socketRef.current = current;
+        current.onopen = () => {
+          if (!active || socket !== current) {
+            return;
           }
-        } catch {
-          terminal.write(event.data as string);
-        }
-      };
-      socket.onclose = () => {
-        if (!active) {
-          return;
-        }
-        terminal.write("\r\n[conexão encerrada]\r\n");
-        terminalStateCallback.current?.({
-          prompt: false,
-          lineEmpty: false,
-          running: false
-        });
-      };
+          fit.fit();
+          current.send(
+            JSON.stringify({
+              type: "resize",
+              cols: terminal.cols,
+              rows: terminal.rows
+            })
+          );
+          if (disconnected) {
+            terminal.write("\r\n[reconectado]\r\n");
+          }
+          disconnected = false;
+          terminal.focus();
+        };
+        current.onmessage = (event) => {
+          if (!active || socket !== current) {
+            return;
+          }
+          try {
+            const message = JSON.parse(event.data as string);
+            if (message.type === "reset") {
+              terminal.reset();
+              offset.value = 0;
+            } else if (message.type === "stream_start") {
+              offset.value = Number(message.offset ?? 0);
+            } else if (message.type === "output") {
+              const text = message.data as string;
+              terminal.write(text);
+              offset.value += encoder.encode(text).length;
+            } else if (message.type === "terminal_state") {
+              terminalStateCallback.current?.({
+                prompt: Boolean(message.prompt),
+                lineEmpty: Boolean(message.lineEmpty),
+                running: Boolean(message.running)
+              });
+            } else if (message.type === "insert_result") {
+              insertResultCallback.current?.({
+                ok: Boolean(message.ok),
+                reason: String(message.reason ?? "")
+              });
+            }
+          } catch {
+            terminal.write(event.data as string);
+          }
+        };
+        current.onclose = (event) => {
+          if (!active || socket !== current) {
+            return;
+          }
+          socket = null;
+          socketRef.current = null;
+          terminalStateCallback.current?.({
+            prompt: false,
+            lineEmpty: false,
+            running: false
+          });
+          if ([4401, 4403, 4409].includes(event.code)) {
+            terminal.write("\r\n[conexão encerrada]\r\n");
+            return;
+          }
+          if (!disconnected) {
+            terminal.write("\r\n[conexão perdida; reconectando...]\r\n");
+            disconnected = true;
+          }
+          scheduleReconnect();
+        };
+      }
+
+      connect();
 
       const dataSubscription = terminal.onData((data) => {
-        if (socket.readyState === WebSocket.OPEN) {
+        if (socket !== null && socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: "input", data }));
         }
       });
       const resizeSubscription = terminal.onResize(({ cols, rows }) => {
-        if (socket.readyState === WebSocket.OPEN) {
+        if (socket !== null && socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: "resize", cols, rows }));
         }
       });
@@ -154,16 +201,20 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(
 
       return () => {
         active = false;
+        if (reconnectTimer !== null) {
+          window.clearTimeout(reconnectTimer);
+        }
         observer.disconnect();
         dataSubscription.dispose();
         resizeSubscription.dispose();
-        socket.close();
+        if (socket !== null) {
+          socket.close();
+        }
         socketRef.current = null;
         terminalRef.current = null;
         terminal.dispose();
       };
     }, [wsPath]);
-
     return (
       <div
         className="terminal"

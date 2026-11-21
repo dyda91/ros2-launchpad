@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   MissionContent,
+  MissionProgress,
   MissionQuestion,
   MissionStatus,
   MissionStep,
@@ -17,8 +18,10 @@ interface MissionPanelProps {
   insertNotice: string;
   busy: boolean;
   restarting: boolean;
+  initialProgress?: MissionProgress;
   onInsert: (command: string) => void;
   onRestart: () => void;
+  onProgressChange: (progress: MissionProgress) => void;
 }
 
 function angleDelta(a: number, b: number) {
@@ -269,43 +272,88 @@ export default function MissionPanel({
   insertNotice,
   busy,
   restarting,
+  initialProgress,
   onInsert,
-  onRestart
+  onRestart,
+  onProgressChange
 }: MissionPanelProps) {
-  const [stepIndex, setStepIndex] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [quizDone, setQuizDone] = useState(false);
-  const [quizWrong, setQuizWrong] = useState(false);
-  const [predictionSelected, setPredictionSelected] = useState<number | null>(
-    null
+  const [stepIndex, setStepIndex] = useState(() =>
+    Math.min(initialProgress?.stepIndex ?? 0, mission.steps.length - 1)
   );
-  const [predictionDone, setPredictionDone] = useState(false);
-  const [predictionWrong, setPredictionWrong] = useState(false);
-  const [hintsShown, setHintsShown] = useState(0);
-  const [solutionVisible, setSolutionVisible] = useState(false);
+  const [selected, setSelected] = useState<number | null>(
+    initialProgress?.selected ?? null
+  );
+  const [quizDone, setQuizDone] = useState(
+    initialProgress?.quizDone ?? false
+  );
+  const [quizWrong, setQuizWrong] = useState(
+    initialProgress?.quizWrong ?? false
+  );
+  const [predictionSelected, setPredictionSelected] = useState<number | null>(
+    initialProgress?.predictionSelected ?? null
+  );
+  const [predictionDone, setPredictionDone] = useState(
+    initialProgress?.predictionDone ?? false
+  );
+  const [predictionWrong, setPredictionWrong] = useState(
+    initialProgress?.predictionWrong ?? false
+  );
+  const [hintsShown, setHintsShown] = useState(
+    initialProgress?.hintsShown ?? 0
+  );
+  const [solutionVisible, setSolutionVisible] = useState(
+    initialProgress?.solutionVisible ?? false
+  );
   const [motionStart, setMotionStart] = useState<{
     x: number;
     y: number;
     yaw: number;
-  } | null>(null);
-  const [motionDone, setMotionDone] = useState(false);
+  } | null>(initialProgress?.motionStart ?? null);
+  const [motionDone, setMotionDone] = useState(
+    initialProgress?.motionDone ?? false
+  );
+  const progressCallback = useRef(onProgressChange);
 
   const step = mission.steps[stepIndex];
   const isLast = stepIndex === mission.steps.length - 1;
   const delivered = Boolean(missionStatus?.delivered);
 
   useEffect(() => {
-    setSelected(null);
-    setQuizDone(false);
-    setQuizWrong(false);
-    setPredictionSelected(null);
-    setPredictionDone(false);
-    setPredictionWrong(false);
-    setHintsShown(0);
-    setSolutionVisible(false);
-    setMotionStart(null);
-    setMotionDone(false);
-  }, [stepIndex]);
+    progressCallback.current = onProgressChange;
+  }, [onProgressChange]);
+
+  const progress = useMemo<MissionProgress>(
+    () => ({
+      stepIndex,
+      selected,
+      quizDone,
+      quizWrong,
+      predictionSelected,
+      predictionDone,
+      predictionWrong,
+      hintsShown,
+      solutionVisible,
+      motionStart,
+      motionDone
+    }),
+    [
+      stepIndex,
+      selected,
+      quizDone,
+      quizWrong,
+      predictionSelected,
+      predictionDone,
+      predictionWrong,
+      hintsShown,
+      solutionVisible,
+      motionStart,
+      motionDone
+    ]
+  );
+
+  useEffect(() => {
+    progressCallback.current(progress);
+  }, [progress]);
 
   useEffect(() => {
     if (
@@ -377,9 +425,20 @@ export default function MissionPanel({
   }
 
   function nextStep() {
-    if (!isLast) {
-      setStepIndex((index) => index + 1);
+    if (isLast) {
+      return;
     }
+    setStepIndex((index) => index + 1);
+    setSelected(null);
+    setQuizDone(false);
+    setQuizWrong(false);
+    setPredictionSelected(null);
+    setPredictionDone(false);
+    setPredictionWrong(false);
+    setHintsShown(0);
+    setSolutionVisible(false);
+    setMotionStart(null);
+    setMotionDone(false);
   }
 
   return (
@@ -574,8 +633,8 @@ export default function MissionPanel({
           </>
         )}
         <p className="mission-footnote">
-          O progresso fica apenas nesta página. Recarregar a página reinicia a
-          missão; reiniciar recria a sessão e a pose inicial.
+          O progresso fica nesta sessão e sobrevive a recarregar a página.
+          Reiniciar recria a sessão, a pose inicial e o progresso.
         </p>
       </div>
     </aside>

@@ -45,8 +45,8 @@ services:
       LAB_IMAGE: ros2-launchpad-lab:dev
       HOST_RUN_DIR: "${HOST_RUN_DIR:-/home/pc/ros2-launchpad/run/sessions}"
       RUN_DIR: /run/sessions
-      MAX_SESSIONS: "1"
-      SESSION_ROS_DOMAIN_ID: "42"
+      MAX_SESSIONS: "${MAX_SESSIONS:-2}"
+      SESSION_ROS_DOMAIN_ID: "${SESSION_ROS_DOMAIN_ID:-42}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./run/sessions:/run/sessions
@@ -76,11 +76,15 @@ services:
       RUNTIME_TOKEN: "${RUNTIME_TOKEN:-dev-local-runtime-token}"
       PUBLIC_ORIGINS: "${PUBLIC_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}"
       COOKIE_SECURE: "false"
-      MAX_SESSIONS: "1"
+      MAX_SESSIONS: "${MAX_SESSIONS:-2}"
       RUN_DIR: /run/sessions
       STATIC_DIR: /app/static
       MISSION_FILE: /app/content/missions/primeiro-turno.yaml
       READY_TIMEOUT_SECONDS: "45"
+      SESSION_TTL_SECONDS: "${SESSION_TTL_SECONDS:-1800}"
+      SESSION_IDLE_SECONDS: "${SESSION_IDLE_SECONDS:-600}"
+      SESSION_WARNING_SECONDS: "${SESSION_WARNING_SECONDS:-120}"
+      SESSION_MONITOR_SECONDS: "${SESSION_MONITOR_SECONDS:-2}"
     volumes:
       - ./run/sessions:/run/sessions
     ports:

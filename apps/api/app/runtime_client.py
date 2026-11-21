@@ -47,3 +47,22 @@ class RuntimeClient:
             await self.client.delete(f"/v1/sessions/{session_id}")
         except httpx.HTTPError:
             pass
+
+    async def status(self, session_id):
+        try:
+            response = await self.client.get(f"/v1/sessions/{session_id}")
+        except httpx.HTTPError:
+            return None
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            return None
+        return response.json()
+
+    async def reconcile(self):
+        try:
+            response = await self.client.post("/v1/reconcile")
+        except httpx.HTTPError as exc:
+            raise RuntimeUnavailable(str(exc)) from exc
+        if response.status_code != 204:
+            raise RuntimeUnavailable(response.text)

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from contextlib import asynccontextmanager
 
@@ -23,6 +24,7 @@ async def lifespan(app):
     app.state.manager = manager
     app.state.runtime = runtime
     app.state.mission = load_mission(settings.mission_file)
+    await manager.start()
     yield
     await manager.shutdown()
     await runtime.close()
@@ -56,6 +58,8 @@ async def health(request: Request):
         "api": "ok",
         "runtime": await current.runtime.health(),
         "session": session.get("state"),
+        "active": current.active_count(),
+        "max": settings.max_sessions,
     }
 
 
@@ -65,20 +69,7 @@ async def session_state(request: Request):
     return manager(request).state(cookie)
 
 
-def set_session_cookie(response, session):
-    response.set_cookie(
-        settings.cookie_name,
-        session.session_id,
-        httponly=True,
-        samesite="lax",
-        secure=settings.cookie_secure,
-        max_age=7200,
-        path="/",
-    )
-    return response
-
-
-def session_response(request, payload, created):
+def session_response(request, payload, created, session_id):
     state = payload.get("state")
     if state == "full":
         return JSONResponse(payload, status_code=409)
@@ -88,23 +79,57 @@ def session_response(request, payload, created):
         payload,
         status_code=200 if state == "ready" else 202,
     )
-    if created and state != "error":
-        set_session_cookie(response, manager(request)._session)
+    if created and session_id:
+        response.set_cookie(
+            settings.cookie_name,
+            session_id,
+            httponly=True,
+            samesite="lax",
+            secure=settings.cookie_secure,
+            max_age=7200,
+            path="/",
+        )
     return response
 
 
 @app.post("/api/session", status_code=202)
 async def create_session(request: Request):
     cookie = request.cookies.get(settings.cookie_name)
-    payload, created = await manager(request).create(cookie)
-    return session_response(request, payload, created)
+    payload, created, session_id = await manager(request).create(cookie)
+    return session_response(request, payload, created, session_id)
 
 
 @app.post("/api/session/restart", status_code=202)
 async def restart_session(request: Request):
     cookie = request.cookies.get(settings.cookie_name)
-    payload, created = await manager(request).restart(cookie)
-    return session_response(request, payload, created)
+    payload, created, session_id = await manager(request).restart(cookie)
+    return session_response(request, payload, created, session_id)
+
+
+@app.post("/api/session/touch", status_code=204)
+async def touch_session(request: Request):
+    cookie = request.cookies.get(settings.cookie_name)
+    if not cookie:
+        raise HTTPException(status_code=409, detail="session not found")
+    lifecycle = await manager(request).touch(cookie)
+    if lifecycle is None:
+        raise HTTPException(status_code=409, detail="session not found")
+    return Response(status_code=204)
+
+
+@app.put("/api/session/progress", status_code=204)
+async def save_progress(request: Request):
+    cookie = request.cookies.get(settings.cookie_name)
+    if not cookie:
+        raise HTTPException(status_code=409, detail="session not found")
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid progress payload")
+    saved = await manager(request).save_progress(cookie, payload.get("progress"))
+    if not saved:
+        raise HTTPException(status_code=409, detail="session not writable")
+    return Response(status_code=204)
 
 
 @app.delete("/api/session", status_code=204)
@@ -141,8 +166,13 @@ async def terminal(websocket: WebSocket):
     client = None
     agent_ws = None
     try:
+        await websocket.app.state.manager.touch(session.session_id)
+        since = websocket.query_params.get("since")
+        path = "/terminal"
+        if since is not None:
+            path = f"/terminal?since={since}"
         client, agent_ws = await websocket.app.state.manager.agent.connect(
-            session.uds_path, session.agent_token, "/terminal"
+            session.uds_path, session.agent_token, path
         )
 
         async def browser_to_agent():
@@ -157,6 +187,14 @@ async def terminal(websocket: WebSocket):
                 data = message.get("bytes")
                 if text is not None:
                     await agent_ws.send_str(text)
+                    try:
+                        payload = json.loads(text)
+                    except json.JSONDecodeError:
+                        payload = {}
+                    if payload.get("type") in {"input", "insert", "resize"}:
+                        await websocket.app.state.manager.touch(
+                            session.session_id
+                        )
                 elif data is not None:
                     await agent_ws.send_bytes(data)
 
@@ -208,6 +246,37 @@ async def telemetry(websocket: WebSocket):
             session.uds_path, session.agent_token, "/telemetry"
         )
 
+        async def lifecycle_reader():
+            while True:
+                current = websocket.app.state.manager.session(
+                    session.session_id
+                )
+                if current is None:
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "type": "lifecycle",
+                                "state": "expired",
+                                "idle_expires_in": 0,
+                                "hard_expires_in": 0,
+                                "warning": True,
+                            }
+                        )
+                    )
+                    return
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "lifecycle",
+                            "state": current.state,
+                            **websocket.app.state.manager.lifecycle(current),
+                        }
+                    )
+                )
+                if current.state not in {"preparing", "ready"}:
+                    return
+                await asyncio.sleep(settings.monitor_interval_seconds)
+
         async def browser_reader():
             while True:
                 try:
@@ -229,6 +298,7 @@ async def telemetry(websocket: WebSocket):
         tasks = [
             asyncio.create_task(browser_reader()),
             asyncio.create_task(agent_reader()),
+            asyncio.create_task(lifecycle_reader()),
         ]
         done, pending = await asyncio.wait(
             tasks, return_when=asyncio.FIRST_COMPLETED

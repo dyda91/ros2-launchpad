@@ -2,12 +2,11 @@
 
 ## Estado atual
 
-O repositório implementa as **Etapas 1, 2A e 3** do ROS 2 Launchpad. A Etapa
-2B (sessões simultâneas, reconexão, expiração e publicação) permanece
-especificada, mas não implementada.
-
-A sessão local única fica em `http://localhost:8080`, com terminal Linux real,
-Canvas 2D, ROS 2 real e a missão guiada "Primeiro Turno". Não há cadastro.
+O repositório implementa as **Etapas 1, 2A, 2B local e 3** do ROS 2 Launchpad.
+Duas sessões anônimas simultâneas ficam em `http://localhost:8080`, cada uma
+com container, ROS graph, terminal Linux real, Canvas 2D e progresso próprios.
+A publicação pública com TLS e a validação reforçada de isolamento continuam
+pendentes antes de um piloto.
 
 ## Estrutura
 
@@ -16,6 +15,7 @@ content/world/armazem.yaml                  fonte única da geometria
 content/missions/primeiro-turno.yaml        conteúdo da missão guiada
 docs/stage1-results.md                      evidências da Etapa 1
 docs/stage2a-results.md                     evidências da Etapa 2A
+docs/stage2b-results.md                     evidências da Etapa 2B local
 docs/stage3-results.md                      evidências da Etapa 3
 lab/ros_ws/src/launchpad_sim/               robô, mundo, watchdog e monitor
 lab/ros_ws/src/launchpad_bringup/           launch headless
@@ -25,8 +25,8 @@ apps/api/                                   FastAPI, sessão e proxy UDS
 apps/runtime/                               controlador do Docker
 apps/web/                                   React + TypeScript + Vite
 specs/001-primeiro-turno/                   spec, plan e tasks
-tests/integration/                          aceite real da Etapa 1 e 2A
-tests/e2e/                                  Playwright
+tests/integration/                          aceite real das Etapas 1, 2A e 2B
+tests/e2e/                                  Playwright 2A, 2B e missão
 compose.yaml                                lab, api e runtime
 Makefile                                    comandos reproduzíveis
 ```
@@ -42,14 +42,16 @@ Makefile                                    comandos reproduzíveis
 - `/cmd_vel` é a entrada do aluno. O watchdog publica em
   `/launchpad/_cmd_vel_safe`, ligado ao Gazebo.
 - `/odom` é a fonte de pose e velocidade para o Canvas e para a validação.
-- O serviço `lab` é manual e serve à Etapa 1. A sessão web é um container
-  efêmero criado pelo runtime a partir da mesma imagem.
+- O serviço `lab` é manual e serve à Etapa 1. Cada sessão web é um container
+  efêmero criado pelo runtime a partir da mesma imagem, com nome
+  `ros2-launchpad-session-<id>` e UDS própria.
 - A API nunca recebe o socket do Docker. Somente `apps/runtime` o acessa.
 - O navegador fala apenas com a API; não acessa runtime, UDS ou Docker.
 - Não copiar, clonar nem importar código do projeto
   `ros2-warehouse-amr-simulator` ou de outros projetos pessoais.
 - Não adicionar GUI, WSLg, X11, RViz, GPU ou publicação pública.
-- Uma sessão simultânea nesta entrega; não implementar 2B sem revisão.
+- Até duas sessões simultâneas (`MAX_SESSIONS=2`); a reserva é atômica e a
+  terceira recebe `full`. Publicação TLS e piloto público exigem revisão.
 
 ## Comandos reais
 
@@ -57,14 +59,17 @@ Makefile                                    comandos reproduzíveis
 make build                 # imagem do laboratório
 make build-app             # imagens da API e do runtime
 make up                    # constrói e sobe a aplicação em 127.0.0.1:8080
-make down                  # para aplicação e remove a sessão
-make session-down          # força a remoção da sessão ativa
+make down                  # para aplicação e remove todas as sessões
+make session-down          # força a remoção das sessões e reinicia API/runtime
 make stage1                # aceite completo da Etapa 1
 make stage2a               # Etapa 1 + integração 2A + Playwright 2A
+make stage2b               # Etapas 1 + integração 2B + Playwright 2B
+make measure-2b            # mede duas sessões simultâneas
 make stage3                # Etapa 1 + conteúdo/API + aplicação + Playwright
 make e2e                   # Playwright completo (2A + missão)
 make test-mission          # schema e conteúdo da missão
 make test-api              # restart com falha e retry
+make test-session-capacity # capacidade, progresso, TTL e reconciliação
 make test-world            # geometria e geração do mundo
 make lab-up                # container manual da Etapa 1
 make lab-shell             # shell no laboratório manual
@@ -94,8 +99,9 @@ timeout 3 ros2 topic pub --rate 10 /cmd_vel \
 ```
 
 A missão usa o monitor ROS para confirmar a entrega: pare dentro da zona por
-2 s. A solução completa é opcional e fica na última dica; o progresso é em
-memória e reinicia ao recarregar a página.
+2 s. A solução completa é opcional e fica na última dica; o progresso é por
+sessão na API, sobrevive a recarregar a página e reinicia no reinício da
+missão.
 
 ## Portão de verificação
 
@@ -104,6 +110,7 @@ Antes de concluir qualquer alteração:
 ```bash
 make stage1
 make stage2a
+make stage2b
 make e2e
 ```
 
@@ -112,10 +119,11 @@ O aceite exige dados reais do simulador e do ROS 2, não mocks. Atualize
 `docs/stage2a-results.md` e `docs/stage3-results.md` com o que foi executado,
 o que passou e o que permanece pendente.
 
-## Runtime e segurança (Etapas 2A e 3)
+## Runtime e segurança (Etapas 2A, 2B e 3)
 
 - `apps/runtime` é o único componente com `/var/run/docker.sock`; ele cria,
-  inspeciona e remove `ros2-launchpad-session`.
+  inspeciona e remove `ros2-launchpad-session-<id>`, com labels
+  `launchpad.role=session`, `launchpad.session` e `launchpad.managed`.
 - `apps/api` tem HTTP interno com `RUNTIME_TOKEN` e acesso à UDS da sessão;
   não tem Docker.
 - `apps/web` fala apenas com a API, por HTTP e WebSocket.
@@ -123,25 +131,32 @@ o que passou e o que permanece pendente.
   `cap_drop: ALL`, `no-new-privileges`, 2 GiB, 2 CPUs e 256 PIDs; não tem
   socket Docker nem rede externa.
 - A UDS fica em `/run/sessions/<id>/agent.sock`; o container monta apenas o
-  próprio diretório em `/run/agent`.
-- O reinício da missão remove e recria o container; a UI descarta telemetria
-  por geração e trata falha de criação com nova tentativa.
+  próprio diretório em `/run/agent`. Cada sessão recebe `ROS_DOMAIN_ID` e
+  `GZ_PARTITION` próprios.
+- O reinício da missão remove e recria o container mantendo vaga e tag; a UI
+  descarta telemetria por geração, zera o progresso e trata falha com nova
+  tentativa.
+- O progresso da missão é validado e guardado na API por sessão.
+- TTL 1800 s, inatividade 600 s, aviso 120 s e monitor 2 s são configuráveis;
+  criar, interagir e tocar contam como atividade; telemetria não conta.
 - Cookie `HttpOnly`, `SameSite=Lax`; validação de `Origin`; token do agente
   não é exposto ao shell.
 - `HOST_RUN_DIR` é passado pelo Makefile para o runtime e deve ser um caminho
   absoluto no host.
 - O perfil local não é um piloto público. Para shells anônimos, Docker
   sozinho não é uma fronteira forte; rootless/VM/seccomp/AppArmor e auditoria
-  são requisitos da Etapa 2B.
+  continuam requisitos antes da publicação.
 
 ## Limitações atuais
 
-- Uma sessão por vez; um segundo navegador recebe `full`.
-- Sem reconexão automática, TTL, inatividade ou limpeza automática (Etapa 2B).
-- Se o navegador fechar sem clicar em “Encerrar sessão”, use
-  `make session-down` ou `make down`.
-- Sem publicação, cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
-- O progresso da missão é em memória e reinicia ao recarregar a página.
+- Duas sessões por vez; o terceiro navegador recebe `full`.
+- Reconexão automática de terminal e telemetria; TTL, inatividade e limpeza
+  automática fazem parte da 2B local.
+- Se o navegador fechar sem clicar em “Encerrar sessão”, a vaga é liberada
+  por inatividade/TTL; `make session-down`/`make down` continuam disponíveis.
+- Sem publicação pública, TLS, cadastro, LiDAR, SLAM, Nav2 ou visor 3D.
+- O progresso da missão sobrevive a recarregar a página, mas reinicia no
+  reinício da missão e ao reiniciar API/runtime.
 - A solução completa da missão é opcional e calibrada para a pose após o
   desafio 3.
 - A sessão em si não monta `/tests`, `/content` nem o repositório.

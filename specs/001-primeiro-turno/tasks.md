@@ -2,7 +2,8 @@
 
 Legenda: **concluído**, **pendente**, **bloqueado**. Toda tarefa concluída
 tem uma verificação executada; resultados detalhados em
-`docs/stage1-results.md`.
+`docs/stage1-results.md`, `docs/stage2a-results.md`, `docs/stage2b-results.md` e
+`docs/stage3-results.md`.
 
 ## Fase 0 — Especificação e base
 
@@ -80,15 +81,35 @@ encerrar + iniciar                  pose inicial ~(0,0)
 Windows localhost/api/health        {"api":"ok","runtime":true,...}
 ```
 
-## Fase 2B — Sessões, reconexão e expiração (pendente)
+## Fase 2B — Sessões, reconexão e expiração (local concluída)
 
-| ID | Status | Tarefa | Verificação planejada |
+| ID | Status | Tarefa | Verificação executada |
 |---|---|---|---|
-| T2B.1 | pendente | Múltiplas sessões simultâneas e limite configurável | dois contextos independentes |
-| T2B.2 | pendente | Reconexão automática de terminal e telemetria | reload e queda de WS |
-| T2B.3 | pendente | TTL, inatividade e limpeza automática | relógio acelerado/prazos curtos |
-| T2B.4 | pendente | Falhas de inicialização e limpeza com retry | testes de caos |
-| T2B.5 | pendente | Validação de isolamento para piloto público | rootless/VM, seccomp, auditoria |
+| T2B.1 | concluído | Até duas sessões simultâneas, reserva atômica e `full` no terceiro | integração; Playwright 2B; `test_session_capacity.py` |
+| T2B.2 | concluído | Reconexão do terminal por offset e da telemetria | reload, fechamento forçado do WS e novo comando |
+| T2B.3 | concluído | TTL, inatividade, aviso e limpeza automática | prazos 90/15/5 s; container removido e vaga liberada |
+| T2B.4 | concluído | Reinício, falhas e reconciliação de órfãos | restart com mesma tag; `test_session_restart_failure.py`; retry de startup |
+| T2B.5 | pendente | Publicação TLS e validação de isolamento para piloto público | rootless/VM, seccomp, auditoria |
+| T2B.6 | concluído | Progresso no servidor por sessão e restauração no reload | `PUT /api/session/progress`; Playwright 2B |
+| T2B.7 | concluído | Containers/UDS/ROS domain/GZ partition por sessão | nome único, labels, UDS por ID, dois domínios |
+
+### Evidências da Etapa 2B
+
+```text
+make stage2b (completo)              OK
+Playwright 2B                        2 passed (1.2 min)
+make measure-2b                      A 7.90 s; B 6.85 s; 2 ativas; max=2
+sessão ociosa                        ~270 MiB; 63-65% de um núcleo
+make test-session-capacity           8/8 OK
+make test-api                        2/2 OK
+make stage1                          OK; startup 6.79 s
+make e2e                             3 passed (2.3 min)
+terceiro navegador                   full, sem container
+inatividade                          aviso, expired, container removido
+reconexão do terminal                WS fechado, reconectado, comando OK
+reinício                             mesma tag, passo 1, pose x≈0
+encerramento                         dois containers e UDS removidos
+```
 
 ## Fase 3 — Missão guiada (concluída)
 
@@ -123,10 +144,10 @@ layout 1600 / 1280 / 800 px          três colunas / desafio acima / empilhado
 
 ## Pendências conhecidas
 
-- A Etapa 2B permanece pendente: múltiplas sessões, reconexão, expiração,
-  publicação e medição de duas sessões.
-- O progresso da missão fica em memória e reinicia ao recarregar a página.
+- A publicação pública com TLS, autenticação de visitantes e isolamento
+  reforçado (rootless/VM, seccomp, AppArmor e auditoria) permanece pendente.
+- O progresso da missão é por sessão e reinicia no reinício da missão; ele
+  não sobrevive à expiração nem ao reinício da API/runtime.
 - A solução completa da missão é opcional e calibrada para a pose após o
   desafio 3.
-- O piloto público exige validação de isolamento além do Docker local.
 - O aviso KDL do link raiz com inércia permanece; não afeta o aceite.

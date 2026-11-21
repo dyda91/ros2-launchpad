@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import MissionPanel from "./components/MissionPanel";
 import Terminal, { type TerminalHandle } from "./components/Terminal";
@@ -9,13 +9,16 @@ import {
   getMission,
   getSession,
   restartSession,
+  saveProgress,
   startSession,
+  touchSession,
   wsUrl
 } from "./lib/api";
 import type {
   InsertResult,
   MapData,
   MissionContent,
+  MissionProgress,
   MissionStatus,
   Pose,
   SessionStatus,
@@ -57,6 +60,8 @@ function statusLabel(state: SessionStatus["state"]) {
       return "Laboratório em uso";
     case "error":
       return "Falha";
+    case "expired":
+      return "Sessão expirada";
     default:
       return "Pronto para começar";
   }
@@ -137,6 +142,22 @@ export default function App() {
     if (session.state !== "ready") {
       return;
     }
+    void touchSession().catch(() => undefined);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void touchSession().catch(() => undefined);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [session.state]);
+
+  useEffect(() => {
+    if (session.state !== "ready") {
+      return;
+    }
     let alive = true;
     getMap()
       .then((data) => {
@@ -158,38 +179,120 @@ export default function App() {
     if (session.state !== "ready") {
       return;
     }
+    let alive = true;
+    let socket: WebSocket | null = null;
+    let timer: number | null = null;
     const generation = generationRef.current;
-    const socket = new WebSocket(wsUrl("/ws/telemetry"));
-    socket.onmessage = (event) => {
-      if (generationRef.current !== generation) {
+
+    function scheduleReconnect() {
+      if (!alive || timer !== null) {
         return;
       }
-      try {
-        const message = JSON.parse(event.data as string) as Record<
-          string,
-          unknown
-        >;
-        if (message.type === "pose") {
-          setPose(message as unknown as Pose);
+      timer = window.setTimeout(() => {
+        timer = null;
+        connect();
+      }, 1200);
+    }
+
+    function applyLifecycle(message: Record<string, unknown>) {
+      const state = String(message.state ?? "");
+      if (state === "expired") {
+        setSession({ state: "expired" });
+        return;
+      }
+      if (
+        state !== "preparing" &&
+        state !== "ready" &&
+        state !== "error"
+      ) {
+        return;
+      }
+      setSession((previous) => ({
+        ...previous,
+        state,
+        error:
+          state === "error"
+            ? previous.error ?? "a sessão não está mais disponível"
+            : previous.error,
+        lifecycle: {
+          idle_expires_in: Number(message.idle_expires_in ?? 0),
+          hard_expires_in: Number(message.hard_expires_in ?? 0),
+          warning: Boolean(message.warning)
         }
-        if (message.type === "mission") {
-          const status = missionStatusFromMessage(message);
-          if (status !== null) {
-            setMissionStatus(status);
+      }));
+    }
+
+    function connect() {
+      if (!alive) {
+        return;
+      }
+      socket = new WebSocket(wsUrl("/ws/telemetry"));
+      socket.onmessage = (event) => {
+        if (generationRef.current !== generation) {
+          return;
+        }
+        try {
+          const message = JSON.parse(event.data as string) as Record<
+            string,
+            unknown
+          >;
+          if (message.type === "pose") {
+            setPose(message as unknown as Pose);
           }
+          if (message.type === "mission") {
+            const status = missionStatusFromMessage(message);
+            if (status !== null) {
+              setMissionStatus(status);
+            }
+          }
+          if (message.type === "lifecycle") {
+            applyLifecycle(message);
+          }
+          if (message.type === "state" && message.state === "error") {
+            setSession((previous) => ({
+              ...previous,
+              state: "error",
+              error: "o simulador encerrou inesperadamente"
+            }));
+          }
+        } catch {
+          return;
         }
-        if (message.type === "state" && message.state === "error") {
-          setSession({
-            state: "error",
-            error: "o simulador encerrou inesperadamente"
-          });
+      };
+      socket.onclose = (event) => {
+        if (!alive) {
+          return;
         }
-      } catch {
-        return;
+        if ([4401, 4403, 4409].includes(event.code)) {
+          getSession()
+            .then((status) => {
+              if (alive) {
+                setSession(status);
+              }
+            })
+            .catch(() => undefined);
+          return;
+        }
+        scheduleReconnect();
+      };
+    }
+
+    connect();
+    return () => {
+      alive = false;
+      if (timer !== null) {
+        window.clearTimeout(timer);
       }
+      socket?.close();
     };
-    return () => socket.close();
   }, [session.state]);
+
+  const handleProgressChange = useCallback(
+    (progress: MissionProgress) => {
+      void saveProgress(progress).catch(() => undefined);
+    },
+    []
+  );
 
   function handleTerminalState(state: TerminalState) {
     setTerminalState(state);
@@ -374,11 +477,12 @@ export default function App() {
       {session.state === "full" ? (
         <main className="landing">
           <div className="landing-card">
-            <p className="eyebrow">Sessão única</p>
-            <h2>Laboratório em uso</h2>
+            <p className="eyebrow">Laboratório cheio</p>
+            <h2>As duas vagas estão em uso</h2>
             <p>
-              Esta entrega permite uma sessão por vez. Encerre a sessão aberta
-              em outro navegador ou tente novamente mais tarde.
+              Esta entrega permite dois navegadores anônimos simultâneos.
+              Encerre uma sessão aberta em outro navegador ou tente novamente
+              mais tarde.
             </p>
             <button
               className="button button-primary"
@@ -386,6 +490,27 @@ export default function App() {
               disabled={busy}
             >
               Verificar novamente
+            </button>
+          </div>
+        </main>
+      ) : null}
+
+      {session.state === "expired" ? (
+        <main className="landing">
+          <div className="landing-card">
+            <p className="eyebrow">Sessão expirada</p>
+            <h2>O tempo ou a inatividade encerraram o laboratório</h2>
+            <p>
+              O robô e o terminal desta sessão foram encerrados. Inicie uma
+              nova sessão para continuar; a missão começa do primeiro desafio.
+            </p>
+            <button
+              className="button button-primary"
+              onClick={handleStart}
+              disabled={busy}
+              data-testid="expired-start-button"
+            >
+              Iniciar nova sessão
             </button>
           </div>
         </main>
@@ -428,8 +553,10 @@ export default function App() {
               insertNotice={insertNotice}
               busy={busy}
               restarting={restarting}
+              initialProgress={session.progress}
               onInsert={handleInsert}
               onRestart={handleRestart}
+              onProgressChange={handleProgressChange}
             />
           ) : (
             <aside className="panel mission-panel">
@@ -441,6 +568,18 @@ export default function App() {
             </aside>
           )}
 
+          {session.lifecycle?.warning ? (
+            <div className="lifecycle-warning" data-testid="lifecycle-warning">
+              {session.lifecycle.idle_expires_in <=
+              session.lifecycle.hard_expires_in
+                ? `Sessão expira por inatividade em ${Math.ceil(
+                    session.lifecycle.idle_expires_in
+                  )} s.`
+                : `Tempo total da sessão termina em ${Math.ceil(
+                    session.lifecycle.hard_expires_in
+                  )} s.`}
+            </div>
+          ) : null}
           <section className="panel viewport-panel">
             <div className="panel-header">
               <div>

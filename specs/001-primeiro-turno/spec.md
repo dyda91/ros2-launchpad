@@ -4,9 +4,11 @@
 
 - **Etapa 1:** implementada e validada em 2026-11-20.
 - **Etapa 2A:** implementada e validada em 2026-11-21.
+- **Etapa 2B local** (duas sessões simultâneas, reconexão, progresso
+  persistente, TTL e inatividade): implementada e validada em 2026-11-21.
 - **Etapa 3:** implementada e validada em 2026-11-21.
-- **Etapa 2B** (sessões simultâneas, reconexão, expiração e publicação)
-  permanece pendente.
+- **Piloto público** (publicação TLS, autenticação de visitantes e validação
+  reforçada de isolamento): pendente.
 
 ## Produto
 
@@ -41,11 +43,11 @@ LiDAR, SLAM, Nav2, visor 3D, publicação, GPU, WSLg, X11, RViz e GUI do Gazebo.
 ## Requisitos funcionais
 
 - **R1** Sessão anônima vinculada a um cookie `HttpOnly`, sem login.
-- **R2** Ciclo de vida com `preparing`, `ready`, `full` e `error` na Etapa
-  2A; `disconnected` e `expired` entram na Etapa 2B.
+- **R2** Ciclo de vida com `idle`, `preparing`, `ready`, `full`, `error` e
+  `expired`; a reconexão é automática enquanto a sessão está ativa.
 - **R3** Cada sessão tem shell, simulador, ROS graph e UDS próprios.
 - **R4** PTY real com digitação, saída contínua, resize, histórico e Ctrl+C;
-  reconexão entra na Etapa 2B.
+  reconexão por offset preserva o xterm e retoma a saída.
 - **R5** Visor Canvas 2D carrega o mapa uma vez e recebe pose/velocidade
   limitadas (10 Hz).
 - **R6** `/cmd_vel` e `/odom` são as interfaces da missão, com tipos
@@ -54,8 +56,8 @@ LiDAR, SLAM, Nav2, visor 3D, publicação, GPU, WSLg, X11, RViz e GUI do Gazebo.
   expiração definido e testado.
 - **R8** Encerrar e iniciar outra sessão restaura a pose sem deixar a
   instância anterior em execução.
-- **R9** Encerrar libera a vaga; expiração e concorrência multi-sessão entram
-  na Etapa 2B.
+- **R9** Encerrar, expirar ou reiniciar uma sessão libera a vaga; duas
+  sessões podem coexistir com progresso e telemetria isolados.
 - **R10** O backend autoriza terminal, telemetria e controles com o segredo
   da sessão vinculado ao navegador.
 - **R11** A aplicação é separada do componente que opera o runtime; somente
@@ -150,13 +152,47 @@ núcleo** e **269,9 MiB**. Consulte `docs/stage2a-results.md`.
 
 ## Etapa 2B — sessões simultâneas, reconexão e expiração
 
-### Critérios de aceite planejados
+### Entregue
 
-- Dois perfis de navegador com robôs independentes.
-- Recarregar reconecta à mesma sessão; reiniciar preserva o contrato de sessão.
-- Expirar libera a vaga; lotação é exibida.
-- TTL de 30 min e inatividade de 10 min.
-- Publicação pública com TLS e isolamento validado para shells anônimos.
+- Até duas sessões anônimas simultâneas (`MAX_SESSIONS=2`), cada uma com
+  cookie, container, UDS e token próprios.
+- Nome de container, UDS, `ROS_DOMAIN_ID` e `GZ_PARTITION` exclusivos por
+  sessão; labels `launchpad.role=session` e `launchpad.session=<id>`.
+- Reserva atômica da vaga na API antes da criação do container; a terceira
+  sessão recebe `full` sem criar container.
+- Progresso persistido no servidor por sessão, validado e devolvido em
+  `GET /api/session`; recarregar restaura o painel; reiniciar zera.
+- Reconexão do terminal por offset em buffer circular de 128 KiB, com replay
+  dos últimos 128 KiB e preservação do xterm quando o offset é válido.
+- Reconexão automática da telemetria e envio de eventos de ciclo de vida.
+- TTL total de 30 min, inatividade de 10 min e aviso 2 min antes; expiração
+  remove container e UDS e libera a vaga.
+- Reinício mantém a mesma tag de sessão e vaga, mas recria container, pose e
+  progresso.
+- Limpeza de órfãos e encerramento de sessões ativas quando API ou runtime
+  reiniciam.
+- `make stage2b` com prazos curtos e `make measure-2b` para duas sessões.
+
+### Critérios de aceite executados
+
+- Dois perfis de navegador com robôs, terminais, tags e progressos distintos.
+- Terceiro navegador recebe `full`; encerrar ou expirar libera a vaga.
+- Recarregar reconecta à mesma sessão e restaura o progresso e o terminal.
+- Reiniciar preserva a tag e a vaga, restaura a pose inicial e zera o painel.
+- O aviso de expiração aparece antes do prazo; ao expirar, o container é
+  removido, a vaga é liberada e uma nova sessão pode começar.
+- A queda do WebSocket do terminal é seguida de reconexão e novo comando.
+- `make stage1`, `make stage2a`, `make e2e`, `make stage2b` e `make measure-2b`
+  passam com dados reais do simulador.
+- Publicação pública, TLS e isolamento de piloto continuam fora do escopo
+  local e pendentes.
+
+### Evidência
+
+A Etapa 2B local foi aprovada em 2026-11-21. Integração OK; Playwright 2B
+**2 passed em 1,2 min**; duas sessões prontas em **7,90 s** e **6,85 s**;
+consumo ocioso de **~270 MiB** e **63–65%** de um núcleo por sessão. Consulte
+`docs/stage2b-results.md`.
 
 ## Etapa 3 — missão guiada Primeiro Turno
 
@@ -180,7 +216,7 @@ núcleo** e **269,9 MiB**. Consulte `docs/stage2a-results.md`.
   o comando é de uma linha e só executa quando o aluno pressiona Enter.
 - Reinício por recriação do container, com descarte de telemetria antiga,
   proteção contra cliques repetidos, mensagem de falha e nova tentativa.
-- Progresso em memória; recarregar reinicia o painel, comunicado na interface.
+- Progresso inicialmente em memória; a Etapa 2B passou a guardá-lo na API por sessão, restaurando o painel ao recarregar.
 - Confirmação final e gancho:
   “Como o robô saberia que há uma caixa no caminho?”
 
@@ -211,9 +247,10 @@ A Etapa 3 foi aprovada em 2026-11-21. `make stage1` OK (startup 6,28 s);
 - Simulação sem interface gráfica, sem GPU, sem WSLg, X11 ou RViz.
 - API, frontend e runtime executam em containers; o perfil local usa
   `127.0.0.1`.
-- Etapas 2A e 3: uma sessão simultânea. Etapa 2B: limite configurável, com
-  padrão 2 para desenvolvimento.
-- Etapa 2B: TTL de 30 min e inatividade de 10 min.
+- Etapas 2A, 2B local e 3: limite configurável, com padrão 2 sessões
+  simultâneas para desenvolvimento.
+- TTL total de 30 min, inatividade de 10 min e aviso de 2 min.
+- O progresso da missão é guardado na API por sessão e reinicia no reinício.
 - Isolamento de sessão com container próprio, sem rede externa, UDS, UID
   1000, `cap_drop: ALL`, `no-new-privileges` e limites de cgroup.
 - Antes de um piloto público, documentar e validar o isolamento contra

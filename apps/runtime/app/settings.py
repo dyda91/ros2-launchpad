@@ -21,6 +21,6 @@ class Settings:
             lab_image=os.environ.get("LAB_IMAGE", "ros2-launchpad-lab:dev"),
             host_run_dir=host_run_dir,
             run_dir=os.environ.get("RUN_DIR", "/run/sessions"),
-            max_sessions=int(os.environ.get("MAX_SESSIONS", "1")),
+            max_sessions=int(os.environ.get("MAX_SESSIONS", "2")),
             ros_domain_id=os.environ.get("SESSION_ROS_DOMAIN_ID", "42"),
         )

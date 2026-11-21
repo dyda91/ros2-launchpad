@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from .docker_backend import DockerBackend
+from .docker_backend import CapacityError, DockerBackend
 from .settings import Settings
 
 settings = Settings.from_env()
@@ -46,6 +46,17 @@ def capacity():
     return {"active": backend.active_count(), "max": settings.max_sessions}
 
 
+@app.post("/v1/reconcile", status_code=204, dependencies=[Depends(require_token)])
+def reconcile():
+    backend.reconcile()
+    return None
+
+
+@app.get("/v1/sessions", dependencies=[Depends(require_token)])
+def list_sessions():
+    return backend.list_sessions()
+
+
 @app.post("/v1/sessions", dependencies=[Depends(require_token)])
 def create_session(payload: CreateSession):
     if backend.active_count() >= settings.max_sessions:
@@ -55,6 +66,8 @@ def create_session(payload: CreateSession):
         return current
     try:
         return backend.start(payload.session_id, payload.agent_token)
+    except CapacityError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except Exception as exc:

@@ -738,3 +738,30 @@ code {
   font-size: 0.76rem;
   line-height: 1.55;
 }
+
+.status-expired {
+  color: #fed7aa;
+  border-color: rgba(251, 146, 60, 0.42);
+}
+
+.status-expired::before {
+  background: #fb923c;
+}
+
+.lifecycle-warning {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  z-index: 20;
+  max-width: min(32rem, calc(100vw - 2rem));
+  transform: translateX(-50%);
+  padding: 0.65rem 1rem;
+  border: 1px solid rgba(251, 191, 36, 0.42);
+  border-radius: 0.75rem;
+  background: rgba(41, 30, 8, 0.94);
+  color: #fde68a;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}

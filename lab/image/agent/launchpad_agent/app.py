@@ -109,7 +109,11 @@ class AgentApp:
         await ws.prepare(request)
         cols = int(request.query.get("cols", "80"))
         rows = int(request.query.get("rows", "24"))
-        await self.pty.add_client(ws, cols, rows)
+        try:
+            since = int(request.query["since"])
+        except (KeyError, ValueError):
+            since = None
+        await self.pty.add_client(ws, cols, rows, since)
         try:
             async for message in ws:
                 if message.type == WSMsgType.TEXT:

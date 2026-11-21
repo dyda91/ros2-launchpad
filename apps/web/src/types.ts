@@ -3,12 +3,38 @@ export type SessionPhase =
   | "preparing"
   | "ready"
   | "full"
-  | "error";
+  | "error"
+  | "expired";
+
+export interface SessionLifecycle {
+  idle_expires_in: number;
+  hard_expires_in: number;
+  warning: boolean;
+}
 
 export interface SessionStatus {
   state: SessionPhase;
   stage?: string;
   error?: string | null;
+  active?: number;
+  max?: number;
+  session_tag?: string;
+  progress?: MissionProgress;
+  lifecycle?: SessionLifecycle;
+}
+
+export interface MissionProgress {
+  stepIndex: number;
+  selected: number | null;
+  quizDone: boolean;
+  quizWrong: boolean;
+  predictionSelected: number | null;
+  predictionDone: boolean;
+  predictionWrong: boolean;
+  hintsShown: number;
+  solutionVisible: boolean;
+  motionStart: { x: number; y: number; yaw: number } | null;
+  motionDone: boolean;
 }
 
 export interface Pose {
