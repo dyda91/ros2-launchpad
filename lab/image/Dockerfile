@@ -11,6 +11,7 @@ ENV ROS_DOMAIN_ID=42
 ENV GZ_PARTITION=launchpad_dev
 ENV HOME=/home/ubuntu
 ENV GZ_IP=127.0.0.1
+ENV PYTHONPATH=/opt/launchpad_agent
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -20,6 +21,7 @@ RUN apt-get update \
         ros-jazzy-rmw-cyclonedds-cpp=2.2.4-1noble.20261105.063358 \
         ros-jazzy-teleop-twist-keyboard=2.4.1-1noble.20261105.090256 \
         ros-jazzy-xacro=2.1.1-1noble.20261025.230251 \
+        python3-aiohttp=3.9.1-1build1 \
         python3-colcon-common-extensions \
         python3-yaml \
         ca-certificates \
@@ -32,6 +34,7 @@ RUN mkdir -p /home/ubuntu/.ros \
     && chown -R 1000:1000 /home/ubuntu
 
 WORKDIR /ros_ws
+COPY lab/image/agent /opt/launchpad_agent
 COPY lab/ros_ws/src /ros_ws/src
 COPY content/world/armazem.yaml /ros_ws/src/launchpad_sim/config/armazem.yaml
 

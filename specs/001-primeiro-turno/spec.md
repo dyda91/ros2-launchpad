@@ -3,8 +3,9 @@
 ## Status
 
 - **Etapa 1:** implementada e validada em 2026-11-20.
-- **Etapa 2:** especificada; não implementada.
-- **Etapa 3:** especificada; não implementada.
+- **Etapa 2A:** implementada e validada em 2026-11-21.
+- **Etapa 2B** (sessões simultâneas, reconexão, expiração e publicação) e
+  **Etapa 3** continuam pendentes.
 
 ## Produto
 
@@ -39,21 +40,21 @@ LiDAR, SLAM, Nav2, visor 3D, publicação, GPU, WSLg, X11, RViz e GUI do Gazebo.
 ## Requisitos funcionais
 
 - **R1** Sessão anônima vinculada a um cookie `HttpOnly`, sem login.
-- **R2** Ciclo de vida com estados `preparing`, `ready`, `full`,
-  `disconnected` e `expired`; estado interno de erro para falhas.
+- **R2** Ciclo de vida com `preparing`, `ready`, `full` e `error` na Etapa
+  2A; `disconnected` e `expired` entram na Etapa 2B.
 - **R3** Cada sessão tem shell, simulador, ROS graph e UDS próprios.
-- **R4** PTY real com digitação, saída contínua, resize, histórico, Ctrl+C e
-  reconexão.
+- **R4** PTY real com digitação, saída contínua, resize, histórico e Ctrl+C;
+  reconexão entra na Etapa 2B.
 - **R5** Visor Canvas 2D carrega o mapa uma vez e recebe pose/velocidade
   limitadas (10 Hz).
 - **R6** `/cmd_vel` e `/odom` são as interfaces da missão, com tipos
   verificados no ambiente real.
 - **R7** O robô para automaticamente quando os comandos cessam, com tempo de
   expiração definido e testado.
-- **R8** Reiniciar a missão restaura a pose e o progresso sem deixar a
+- **R8** Encerrar e iniciar outra sessão restaura a pose sem deixar a
   instância anterior em execução.
-- **R9** Expirar ou encerrar libera a vaga; requisições concorrentes não
-  criam sessões duplicadas.
+- **R9** Encerrar libera a vaga; expiração e concorrência multi-sessão entram
+  na Etapa 2B.
 - **R10** O backend autoriza terminal, telemetria e controles com o segredo
   da sessão vinculado ao navegador.
 - **R11** A aplicação é separada do componente que opera o runtime; somente
@@ -107,7 +108,46 @@ execuções. Parada observada após o comando:
 **0,400 s**. Consumo ocioso: **66,8–70,2% de um núcleo** e **~258 MiB**.
 Consumo durante movimento: pico de **124,7%** e **~292 MiB**. Consulte `docs/stage1-results.md` para os comandos e amostras.
 
-## Etapa 2 — sessão, terminal e visor
+## Etapa 2A — sessão local, terminal e visor
+
+### Entregue
+
+- React + TypeScript + Vite, servidos pela API FastAPI em
+  `http://localhost:8080`.
+- Sessão anônima única, com cookie `HttpOnly`, sem login.
+- Container efêmero criado pelo runtime a partir da mesma imagem da Etapa 1.
+- Agente dentro do container que inicia o launch, abre o PTY, lê `/odom` por
+  `rclpy` e expõe apenas uma UDS.
+- xterm.js conectado ao PTY real, com resize, histórico do shell, Ctrl+C e
+  buffer de saída.
+- Canvas 2D carregando o `map.json` do próprio simulador e atualizando a pose
+  a 10 Hz.
+- Encerramento que remove o container e a UDS, liberando a sessão única.
+- Separação de acesso: somente `apps/runtime` tem o socket do Docker; a API
+  usa HTTP interno e a UDS; o navegador só acessa a API.
+
+### Critérios de aceite executados
+
+- `make stage1` continua passando.
+- O navegador em localhost inicia a sessão sem terminal auxiliar: aprovado no
+  Playwright e verificado por HTTP a partir do Windows.
+- `ros2 topic list` no terminal real mostra `/cmd_vel` e `/odom`.
+- `ros2 topic echo /odom` interrompido com Ctrl+C devolve o prompt.
+- O comando de movimento da Etapa 1 muda a pose real exibida no Canvas e o
+  robô para após o watchdog.
+- Encerrar a sessão remove o container e permite iniciar outra na pose
+  inicial.
+- O container da sessão está em `network none`, sem socket Docker, com UID
+  1000, `cap_drop: ALL`, `no-new-privileges`, 2 GiB, 2 CPUs e 256 PIDs.
+- A aplicação publica apenas `127.0.0.1:8080`.
+
+### Evidência
+
+A Etapa 2A foi aprovada em 2026-11-21. Sessão pronta em **7,26 s** após o
+`POST`; Playwright **1 passed em 47,8–50,0 s**; ocioso da sessão **73,81% de um
+núcleo** e **269,9 MiB**. Consulte `docs/stage2a-results.md`.
+
+## Etapa 2B — sessões simultâneas, reconexão e expiração
 
 ### Critérios de aceite planejados
 
@@ -141,8 +181,9 @@ Consumo durante movimento: pico de **124,7%** e **~292 MiB**. Consulte `docs/sta
 - Simulação sem interface gráfica, sem GPU, sem WSLg, X11 ou RViz.
 - API, frontend e runtime executam em containers; o perfil local usa
   `127.0.0.1`.
-- Limite inicial de sessões configurável; padrão 2 para desenvolvimento.
-- TTL inicial: 30 min; inatividade: 10 min.
+- Etapa 2A: uma sessão simultânea. Etapa 2B: limite configurável, com
+  padrão 2 para desenvolvimento.
+- Etapa 2B: TTL de 30 min e inatividade de 10 min.
 - Isolamento de sessão com container próprio, sem rede externa, UDS, UID
   1000, `cap_drop: ALL`, `no-new-privileges` e limites de cgroup.
 - Antes de um piloto público, documentar e validar o isolamento contra

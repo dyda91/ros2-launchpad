@@ -3,7 +3,8 @@
 ## Status
 
 - **Etapa 1:** implementada.
-- **Etapa 2:** planejada.
+- **Etapa 2A:** implementada.
+- **Etapa 2B:** planejada.
 - **Etapa 3:** planejada.
 
 ## Estrutura do monorepo
@@ -28,17 +29,26 @@ ros2-launchpad/
 │       │   └── worlds/                # SDF gerado, não versionado
 │       └── launchpad_bringup/
 │           └── launch/lab.launch.py
+├── apps/
+│   ├── api/                    # FastAPI, sessão, proxy UDS, build do web
+│   ├── runtime/                # Docker socket, criação/remoção da sessão
+│   └── web/                    # React + TypeScript + Vite + xterm + Canvas
+├── lab/image/agent/            # agente aiohttp, PTY, launch e /odom
 ├── specs/001-primeiro-turno/
 ├── tests/integration/
 │   ├── test_world_geometry.py
 │   ├── odom_probe.py
 │   ├── route_probe.py
-│   └── stage1_acceptance.sh
-└── docs/stage1-results.md
+│   ├── stage1_acceptance.sh
+│   └── stage2a_acceptance.sh
+├── tests/e2e/                  # Playwright
+├── docs/stage1-results.md
+└── docs/stage2a-results.md
 ```
 
-Etapas futuras adicionarão `apps/api`, `apps/runtime`, `apps/web`,
-`content/missions` e `tests/e2e`, conforme a especificação.
+A Etapa 2A adicionou `apps/api`, `apps/runtime`, `apps/web`,
+`lab/image/agent` e `tests/e2e`. `content/missions` e a missão guiada ficam
+para a Etapa 3.
 
 ## Arquitetura da Etapa 1
 
@@ -164,7 +174,8 @@ são parâmetros do nó.
   `LOCALHOST`; `GZ_IP=127.0.0.1`; `network_mode: none`.
 - Build em duas etapas lógicas: instalação de pacotes e build do workspace
   com `colcon` dentro da imagem.
-- Imagem observada: 3,45 GB.
+- Imagens observadas: lab 3,45 GB; API 264 MB; runtime 250 MB;
+  Playwright 3,63 GB.
 
 ## Isolamento da Etapa 1
 
@@ -177,10 +188,96 @@ O container `lab`:
 - não monta o socket do Docker;
 - monta apenas `tests/` e `content/` em somente leitura.
 
-A Etapa 2 mudará para um container por sessão, UDS e agente interno. O
-runtime será o único componente com socket do Docker. O perfil local não será
-apresentado como pronto para um piloto público: para shells anônimos, Docker
-sozinho não é uma fronteira forte contra código arbitrário.
+A Etapa 2A passou a usar um container efêmero por sessão, UDS e agente
+interno, mantendo o serviço `lab` apenas para a Etapa 1. O runtime é o único
+componente com socket do Docker. O perfil local não é apresentado como pronto
+para um piloto público: para shells anônimos, Docker sozinho não é uma
+fronteira forte contra código arbitrário.
+
+
+## Etapa 2A — sessão local implementada
+
+```text
+Navegador (Windows) ── HTTP/WS ──► 127.0.0.1:8080
+                                      │
+                                      ▼
+                                   apps/api (FastAPI)
+                                      ├── cookie de sessão, uma por vez
+                                      ├── serve o build React/Vite
+                                      ├── HTTP interno + token ──► apps/runtime
+                                      └── UDS /run/sessions/<id>/agent.sock
+                                                                  │
+                                                                  ▼
+                                                    container de sessão
+                                                    network none, UID 1000
+                                                    launchpad_agent (aiohttp)
+                                                      ├── ros2 launch
+                                                      ├── PTY bash
+                                                      └── rclpy /odom
+```
+
+### Componentes e acesso
+
+| Componente | Docker socket | Runtime HTTP | UDS | Rede externa |
+|---|---:|---:|---:|---:|
+| `apps/web` | não | não | não | via navegador/API |
+| `apps/api` | **não** | sim, com token | sim, com token | rede interna |
+| `apps/runtime` | **sim** | — | não | rede interna |
+| `launchpad_agent` | **não** | não | sim | **não** |
+
+O serviço `lab` da Etapa 1 continua sendo manual. A sessão 2A é um container
+efêmero criado pelo runtime a partir da mesma imagem; não é o container `lab`.
+
+### Inicialização, readiness e encerramento
+
+- O navegador chama `POST /api/session`; a API cria cookie e chama o runtime.
+- O runtime cria `ros2-launchpad-session` com `network none`, UID 1000,
+  `cap_drop: ALL`, `no-new-privileges`, 2 GiB, 2 CPUs, 256 PIDs, apenas a UDS
+  montada e um token de agente.
+- O agente inicia `ros2 launch launchpad_bringup lab.launch.py`, assina
+  `/odom` com `rclpy` e só reporta `ready` após a primeira odometria válida.
+- A API faz polling do agente a cada 0,5 s, com timeout de 45 s; o navegador
+  mostra “Preparando” e depois “Pronto”.
+- O terminal só abre quando o estado é `ready`; o PTY é criado sob demanda.
+- `DELETE /api/session` remove o container e a UDS; o runtime espera o
+  container terminar. Uma nova sessão cria outro container e volta à pose
+  inicial.
+- Se o navegador fechar sem encerrar, a sessão única permanece até
+  `make session-down`/`make down`; expiração automática fica para 2B.
+
+### Contratos da Etapa 2A
+
+```text
+POST   /api/session       202 preparing | 409 full | 503 error
+GET    /api/session       idle | preparing | ready | full | error
+DELETE /api/session       204
+GET    /api/map           map.json (409 antes de ready)
+GET    /api/health        api, runtime e estado da sessão
+WS     /ws/terminal       JSON input/output/resize, autenticado por cookie
+WS     /ws/telemetry      state/pose a 10 Hz, autenticado por cookie
+```
+
+```text
+POST   /v1/sessions       {session_id, agent_token} -> {uds_path,...}
+DELETE /v1/sessions/{id}
+GET    /v1/capacity
+Authorization: Bearer RUNTIME_TOKEN
+```
+
+O agente expõe `GET /state`, `GET /map`, `WS /terminal` e `WS /telemetry` em
+`/run/agent/agent.sock`, exigindo `X-Agent-Token`. A UDS é o único canal de
+dados do container com `network none`.
+
+### Resultados
+
+- Sessão pronta em 7,26 s após o `POST`.
+- Playwright 1 passed em 47,8–50,0 s, incluindo Ctrl+C, movimento, Canvas e
+  encerrar/reiniciar.
+- Sessão ociosa: 73,81% de um núcleo e 269,9 MiB; API 43,12 MiB; runtime
+  45,22 MiB.
+- Apenas `127.0.0.1:8080` publicado; a partir do Windows,
+  `http://localhost:8080/api/health` respondeu com saúde ok.
+- `make stage1` continua passando.
 
 ## Testes
 
@@ -193,18 +290,20 @@ sozinho não é uma fronteira forte contra código arbitrário.
 - `stage1_acceptance.sh`: reinicia o container, inicia o launch, valida
   tópicos/tipos, robô único, pose inicial, movimento, parada, CLI, entrega,
   limites e reinício limpo.
+- `stage2a_acceptance.sh`: valida sessão, readiness, mapa, tópicos ROS,
+  isolamento, encerramento e nova sessão na API real.
+- `tests/e2e/stage2a.spec.ts`: Playwright real com terminal, Ctrl+C, movimento,
+  Canvas, encerramento e reinício.
 - O aceite usa o simulador real, não telemetria simulada.
 
-## Contratos futuros (Etapas 2 e 3)
+## Contratos futuros (Etapas 2B e 3)
 
-- API FastAPI: `POST/GET/DELETE /api/session`, `POST /api/session/restart`,
-  `GET /api/mission`, `WS /ws/terminal`, `WS /ws/telemetry`.
-- Runtime restrito: criação, remoção, reset, saúde e capacidade de containers.
-- Agente da sessão: PTY em UDS, telemetria de `/odom`, reset e status.
-- Frontend React + TypeScript + Vite, xterm.js e Canvas 2D.
-- Cookie `HttpOnly`, `SameSite=Lax`, validação de `Origin` e segredo de sessão
-  no servidor.
-- TTL 30 min, inatividade 10 min, `MAX_SESSIONS` configurável (padrão 2).
+- Segunda sessão simultânea e limite configurável.
+- Reconexão automática do terminal/telemetria e replay de buffer.
+- TTL de 30 min, inatividade de 10 min e limpeza automática.
+- `POST /api/session/restart` e validação da missão na Etapa 3.
+- Playwright com dois contextos e isolamento entre sessões.
+- Publicação pública com TLS e isolamento de piloto.
 
 ## Riscos e decisões pendentes
 
@@ -213,5 +312,5 @@ sozinho não é uma fronteira forte contra código arbitrário.
 - O tempo de inicialização de 5,85–6,61 s é aceitável para o perfil local; o alvo
   de UX da Etapa 2 será medido com o agente e a web.
 - O aviso KDL do link raiz com inércia é conhecido e não afeta a simulação.
-- O uso de CPU ocioso é ~0,67 núcleo; a Etapa 2 deve medir duas sessões e
-  ajustar o passo de física se necessário.
+- A sessão 2A ociosa usa ~0,74 núcleo e ~270 MiB; a Etapa 2B deve medir duas
+  sessões e ajustar o passo de física se necessário.

@@ -10,3 +10,8 @@ run
 docs
 specs
 tests
+apps/web/node_modules
+apps/web/dist
+apps/api/**/__pycache__
+apps/runtime/**/__pycache__
+lab/image/agent/**/__pycache__

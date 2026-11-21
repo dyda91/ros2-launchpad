@@ -13,3 +13,7 @@ lab/ros_ws/install/
 lab/ros_ws/log/
 lab/ros_ws/src/launchpad_sim/worlds/*.sdf
 lab/ros_ws/src/launchpad_sim/config/map.json
+apps/web/dist/
+tests/e2e/node_modules/
+tests/e2e/test-results/
+tests/e2e/playwright-report/

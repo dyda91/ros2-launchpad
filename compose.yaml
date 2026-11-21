@@ -33,3 +33,75 @@ services:
     tty: true
     stdin_open: true
     stop_grace_period: 20s
+
+  runtime:
+    build:
+      context: .
+      dockerfile: apps/runtime/Dockerfile
+    image: ros2-launchpad-runtime:dev
+    container_name: ros2-launchpad-runtime
+    environment:
+      RUNTIME_TOKEN: "${RUNTIME_TOKEN:-dev-local-runtime-token}"
+      LAB_IMAGE: ros2-launchpad-lab:dev
+      HOST_RUN_DIR: "${HOST_RUN_DIR:-/home/pc/ros2-launchpad/run/sessions}"
+      RUN_DIR: /run/sessions
+      MAX_SESSIONS: "1"
+      SESSION_ROS_DOMAIN_ID: "42"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./run/sessions:/run/sessions
+    networks:
+      - control
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/v1/health', timeout=2)"
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    stop_grace_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: ros2-launchpad-api:dev
+    container_name: ros2-launchpad-api
+    user: "1000:1000"
+    environment:
+      RUNTIME_URL: http://runtime:8100
+      RUNTIME_TOKEN: "${RUNTIME_TOKEN:-dev-local-runtime-token}"
+      PUBLIC_ORIGINS: "${PUBLIC_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}"
+      COOKIE_SECURE: "false"
+      MAX_SESSIONS: "1"
+      RUN_DIR: /run/sessions
+      STATIC_DIR: /app/static
+      READY_TIMEOUT_SECONDS: "45"
+    volumes:
+      - ./run/sessions:/run/sessions
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8000"
+    networks:
+      - app
+      - control
+    depends_on:
+      runtime:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+networks:
+  app:
+  control:
+    internal: true

@@ -44,17 +44,51 @@ robots_after_restart=launchpad_robot
 === ACEITE ETAPA 1: OK ===
 ```
 
-## Fase 2 — Sessão, terminal e visor (pendente)
+## Fase 2A — Sessão local (concluída)
+
+| ID | Status | Tarefa | Verificação executada |
+|---|---|---|---|
+| T2A.1 | concluído | Adicionar agente aiohttp à imagem do lab; iniciar o launch automaticamente | `/state` = ready; `/odom` real; container `network none` |
+| T2A.2 | concluído | Implementar PTY real em UDS: entrada, saída, resize, Ctrl+C | terminal real; Ctrl+C devolveu o prompt; Playwright |
+| T2A.3 | concluído | Implementar telemetria `/odom` via rclpy e `/map` do simulador | pose real; `map.json` com `armazem/coleta` |
+| T2A.4 | concluído | Implementar runtime controller com Docker socket e limites | container criado/removido; 2 GiB, 2 CPUs, 256 PIDs |
+| T2A.5 | concluído | Implementar API FastAPI, cookie, sessão única, readiness e proxy WS | início sem login; `preparing`→`ready`; full no segundo navegador |
+| T2A.6 | concluído | Implementar React/Vite, xterm.js e Canvas 2D | terminal, mapa, pose, movimento e parada |
+| T2A.7 | concluído | Publicar apenas em loopback e validar `localhost` no Windows | `ss`: 127.0.0.1:8080; HTTP do Windows OK |
+| T2A.8 | concluído | Encerrar sessão, remover container/UDS e iniciar outra na pose inicial | integração e Playwright; `run/sessions` vazio; pose ~0 |
+| T2A.9 | concluído | Playwright real com terminal, Ctrl+C, Canvas, movimento, fim e reinício | 1 passed em 47,8–50,0 s; Canvas com pixels |
+| T2A.10 | concluído | Regressão completa da Etapa 1 | `make stage1` OK após as mudanças |
+
+### Evidências da Etapa 2A
+
+```text
+$ make stage2a
+make stage1                         OK
+tests/integration/stage2a...        OK
+Playwright 1 passed (47.8–50.0s)         OK
+
+sessão pronta após POST              7.26s
+sessão ociosa                        73.81% de um núcleo, 269.9 MiB
+API                                 43.12 MiB
+runtime                             45.22 MiB
+porta publicada                     127.0.0.1:8080
+container da sessão                 network none, 2 GiB, 2 CPUs, 256 PIDs
+socket Docker na sessão             ausente
+interfaces da sessão                somente lo
+segundo navegador                   full
+encerrar + iniciar                  pose inicial ~(0,0)
+Windows localhost/api/health        {"api":"ok","runtime":true,...}
+```
+
+## Fase 2B — Sessões, reconexão e expiração (pendente)
 
 | ID | Status | Tarefa | Verificação planejada |
 |---|---|---|---|
-| T2.1 | pendente | Agente PTY em UDS: digitação, resize, histórico, Ctrl+C, replay | testes de PTY + navegador |
-| T2.2 | pendente | Agente de telemetria `/odom` a 10 Hz e readiness | teste de taxa e conteúdo |
-| T2.3 | pendente | Runtime controller com Docker socket e limites | criar/remover; inspecionar container |
-| T2.4 | pendente | Ciclo de vida da API: cookie, estados, TTL, lotação, idempotência | testes de concorrência e limpeza |
-| T2.5 | pendente | Web React/TS/Vite com xterm.js e Canvas 2D | testes de UI; mock apenas para desenvolvimento |
-| T2.6 | pendente | Compose de desenvolvimento em loopback | `ss -ltn`; navegador do Windows em `localhost` |
-| T2.7 | pendente | Isolamento com dois contextos e ciclo de vida E2E | Playwright + integração |
+| T2B.1 | pendente | Múltiplas sessões simultâneas e limite configurável | dois contextos independentes |
+| T2B.2 | pendente | Reconexão automática de terminal e telemetria | reload e queda de WS |
+| T2B.3 | pendente | TTL, inatividade e limpeza automática | relógio acelerado/prazos curtos |
+| T2B.4 | pendente | Falhas de inicialização e limpeza com retry | testes de caos |
+| T2B.5 | pendente | Validação de isolamento para piloto público | rootless/VM, seccomp, auditoria |
 
 ## Fase 3 — Missão guiada (pendente)
 
@@ -68,7 +102,8 @@ robots_after_restart=launchpad_robot
 
 ## Pendências conhecidas
 
-- A aplicação web não foi iniciada nesta entrega, por decisão de escopo.
-- Duas sessões simultâneas ainda não foram medidas; a Etapa 2 fará isso.
+- A Etapa 2A tem uma sessão única e não implementa reconexão, expiração ou
+  publicação.
+- Duas sessões simultâneas ainda não foram medidas; a Etapa 2B fará isso.
 - O piloto público exige validação de isolamento além do Docker local.
 - O aviso KDL do link raiz com inércia permanece; não afeta o aceite.
