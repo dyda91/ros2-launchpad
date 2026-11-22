@@ -172,6 +172,65 @@ function drawScene(
     }
   }
 
+  context.fillStyle = wallColor;
+  context.fillRect(
+    screenX(floor.min[0] - wall),
+    screenY(floor.max[1] + wall),
+    screenWidth(floor.size[0] + wall * 2),
+    screenHeight(wall)
+  );
+  context.fillRect(
+    screenX(floor.min[0] - wall),
+    screenY(floor.min[1]),
+    screenWidth(floor.size[0] + wall * 2),
+    screenHeight(wall)
+  );
+  context.fillRect(
+    screenX(floor.min[0] - wall),
+    screenY(floor.max[1]),
+    screenWidth(wall),
+    screenHeight(floor.size[1])
+  );
+  context.fillRect(
+    screenX(floor.max[0]),
+    screenY(floor.max[1]),
+    screenWidth(wall),
+    screenHeight(floor.size[1])
+  );
+  context.strokeStyle = "#a29378";
+  context.lineWidth = 2;
+  context.strokeRect(
+    screenX(floor.min[0]),
+    screenY(floor.max[1]),
+    screenWidth(floor.size[0]),
+    screenHeight(floor.size[1])
+  );
+  for (const obstacle of map.obstacles) {
+    context.strokeStyle = "rgba(245, 208, 139, 0.9)";
+    context.lineWidth = 1.5;
+    if (obstacle.type === "box") {
+      const [x, y] = obstacle.center;
+      const [sizeX, sizeY] = obstacle.size;
+      context.strokeRect(
+        screenX(x - sizeX / 2),
+        screenY(y + sizeY / 2),
+        screenWidth(sizeX),
+        screenHeight(sizeY)
+      );
+    } else {
+      const [x, y] = obstacle.center;
+      context.beginPath();
+      context.arc(
+        screenX(x),
+        screenY(y),
+        screenLength(obstacle.radius),
+        0,
+        Math.PI * 2
+      );
+      context.stroke();
+    }
+  }
+
   if (pose !== null) {
     const robotX = screenX(pose.x);
     const robotY = screenY(pose.y);

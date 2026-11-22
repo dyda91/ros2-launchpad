@@ -195,7 +195,7 @@ layout 1600 / 1280 / 800 px          três colunas / desafio acima / empilhado
 | T5.5 | concluído | Sequência completa na mesma sessão, ré relativa à frente | Playwright com `/odom` |
 | T5.6 | concluído | Manter condução após avançar e após a entrega | Playwright stage4 + stage3 atualizado |
 | T5.10 | concluído | Regressão de Stage 1/2A/2B/3 e 4A após a correção de foco | `make stage2b`, `make e2e`, `make e2e-4a`, integração 2A |
-| T5.7 | concluído | 4B: layout de duas colunas e terminal abaixo do visor | `stage2a.spec.ts` e `make e2e` |
+| T5.7 | concluído | 4B: aula à esquerda em ~40%, visor e terminal à direita | `stage2a.spec.ts` e `make e2e` |
 | T5.8 | concluído | 4C: curso v2 com seis módulos e Tab validado | `test-mission` 6/6; `stage4-driving` |
 | T5.9 | concluído | 4D: LiDAR real, sensores headless e obstáculos | `/scan` real; camada no Canvas |
 | T5.11 | pendente | 4E: teste com iniciante e host externo | depende de pessoa/host |

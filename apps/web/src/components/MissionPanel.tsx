@@ -694,6 +694,33 @@ export default function MissionPanel({
           O progresso fica nesta sessão e sobrevive a recarregar a página.
           Reiniciar recria a sessão, a pose inicial e o progresso.
         </p>
+        <p className="terminal-help mission-terminal-help">
+          Tab completa caminhos e comandos; em prefixo ambíguo, Tab novamente
+          lista as opções. Use Ctrl+C para interromper e Ctrl+Shift+E para sair
+          do terminal e focar a aula.
+        </p>
+        <details className="free-drive-help mission-free-drive" data-testid="free-drive-help">
+          <summary>Condução livre: comandos</summary>
+          <p>
+            Para manter o robô andando, use o comando sem <code>timeout</code> e
+            interrompa com Ctrl+C. Para um tempo maior, troque 10 pelo número de
+            segundos desejado.
+          </p>
+          <pre>{`# andar por 10 segundos
+timeout 10 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
+
+# girar à esquerda
+timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: 0.8}}"
+
+# girar à direita
+timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: -0.8}}"
+
+# recuar
+timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: -0.15}}"
+
+# movimento contínuo; pare com Ctrl+C
+ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"`}</pre>
+        </details>
       </div>
     </aside>
   );

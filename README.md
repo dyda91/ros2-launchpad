@@ -20,7 +20,7 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
 - **Piloto público:** DNS/TLS reais, rootless validado no host e isolamento
   reforçado — pendente.
 - **Etapa 4 local (4A–4D):** foco/Tab, condução repetida, curso v2 em seis
-  módulos, layout de duas colunas, visor com LiDAR e obstáculos — implementada
+  módulos, visor largo com LiDAR e obstáculos — implementada
   e validada localmente.
 - **Etapa 4E:** teste com iniciante e host externo — pendente.
 
@@ -37,7 +37,8 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
   exercícios e dicas graduais.
 - Tab real no xterm para caminhos e subcomandos ROS 2; `Ctrl+Shift+E` sai do
   terminal e leva o foco à aula.
-- Visor 2D com orientação, zoom, recentralização, legenda e camada LiDAR.
+- Visor dividido em planta 2D e visão em primeira pessoa do robô, com
+  orientação, zoom, recentralização, legenda e camada LiDAR.
 - Terminal xterm.js conectado a um PTY bash real dentro do container da
   sessão.
 - Visor Canvas 2D com o mesmo `map.json` do simulador e pose real de `/odom`.
@@ -90,7 +91,8 @@ http://localhost:8080
 
 Clique em **Iniciar laboratório** e aguarde o estado **Pronto**. O simulador é
 iniciado automaticamente; não é necessário executar `ros2 launch` em outro
-terminal. A aula fica à esquerda; visor e terminal ficam empilhados à direita.
+terminal. A aula ocupa cerca de 40% da largura, de cima a baixo, à esquerda; o
+visor e o terminal ficam à direita.
 
 Para parar:
 

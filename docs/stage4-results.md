@@ -20,8 +20,8 @@ de uma rodada de regressão que use `sessions-clean`.
 Build verificado nesta rodada:
 
 ```text
-assets/index-CMvykhyO.js
-assets/index-0EX-Ykap.css
+assets/index-CrOv_6nc.js
+assets/index-DFNCHoZy.css
 ```
 
 O mesmo hash apareceu no `curl` da página e em `/app/static/assets` da API.
@@ -45,8 +45,8 @@ Comandos verificados no xterm:
   `setup.zsh`;
 - Tab é enviado ao shell apenas quando o xterm tem foco. O terminal ganha foco
   ao clicar no workspace e pelo botão **Focar terminal**.
-- **Ctrl+Shift+E** sai do terminal e leva o foco à aula. O atalho está na ajuda
-  do terminal e no módulo de terminal Linux.
+- **Ctrl+Shift+E** sai do terminal e leva o foco à aula. O atalho e a ajuda de
+  Tab/Ctrl+C ficam na aula, à esquerda, sem consumir a altura do terminal.
 
 O shell direto e o PTY usam o mesmo Bash, ROS 2 e completion; a diferença
 anterior era o `exec bash --noprofile --norc` que descartava a configuração de
@@ -105,19 +105,22 @@ observação e dicas graduais; a solução completa aparece depois de esgotar as
 dicas e pode ser copiada para o terminal. O curso usa `version: 2` e a API
 valida os seis módulos e os novos campos.
 
-O desktop passou a ter duas colunas: aula à esquerda; visor e terminal
-empilhados à direita. Em telas menores tudo empilha. O terminal fica
-imediatamente abaixo do visor. O visor tem legenda de parede/obstáculo/zona/
-LiDAR, zoom de 1,00x a 3,00x e botão **Centralizar**. A orientação do robô é
-desenhada a partir de `pose.yaw`.
+No desktop, a aula ocupa cerca de 40% da largura, de cima a baixo, à esquerda;
+o visor e o terminal ficam à direita, com o terminal abaixo do visor. Em telas
+menores tudo empilha. O visor é dividido em duas metades: **Planta 2D** e **Visão do robô**. A visão
+em primeira pessoa é uma projeção em perspectiva das paredes e obstáculos a
+partir de `pose.x`, `pose.y` e `pose.yaw` (raycasting no mapa), com FOV de 60°;
+não é uma câmera Gazebo. A planta tem legenda de
+parede/obstáculo/zona/LiDAR, zoom de 1,00x a 3,00x e botão **Centralizar**.
 
-O layout ocupa a altura da janela e reserva uma faixa mais baixa e larga para
-o mapa; o terminal fica visível sem rolar a página. Em 1280x800, o teste mede
-o retângulo do terminal dentro da janela e exige
-`scrollHeight - innerHeight <= 1`. O Canvas usa escalas independentes em X e
-Y: o mapa preenche a faixa esticada, em vez de manter uma área quadrada que
-empurra o terminal para fora da tela. Em telas estreitas, a página volta a
-rolar e os painéis empilham.
+O layout ocupa a altura da janela. A aula ocupa toda a lateral esquerda, de
+cima a baixo, com cerca de 40% da largura; o mapa e o terminal ficam à direita,
+com o terminal abaixo do mapa. Em 1280x900, a aula tem 493 px de largura, o
+mapa 739x322 px (dividido em duas vistas) e o terminal 739x200 px. Em 1280x800 o teste mede o retângulo
+do terminal dentro da janela e exige `scrollHeight - innerHeight <= 1`. O
+Canvas usa escalas independentes em X e Y: o mapa preenche a área esticada. A
+ajuda de Tab, Ctrl+C, Ctrl+Shift+E e condução livre fica no fim da aula. Em
+telas estreitas, a página volta a rolar e os painéis empilham.
 
 ## LiDAR
 
@@ -131,9 +134,12 @@ agente guarda um histórico curto de poses e anexa ao scan a pose de `/odom`
 mais próxima do `header.stamp`; o Canvas usa essa pose, não a pose mais
 recente da tela. Antes, a nuvem capturada antes de uma curva era desenhada
 com o yaw novo, girando os pontos e criando uma parede aparente à frente.
-A camada LiDAR pode ser ligada e desligada. O teste verifica mais de 20
-pontos, o toggle, a presença do tópico real e a diferença máxima de 1 s entre
-o stamp do scan e o stamp da pose usada.
+Depois dos pontos, o Canvas redesenha paredes e contornos dos obstáculos: os
+pontos que coincidem com a geometria real do mapa ficam cobertos pela parede
+ou pelo obstáculo, e não parecem uma parede solta no espaço livre. A camada
+LiDAR pode ser ligada e desligada. O teste verifica mais de 20 pontos, o
+toggle, a presença do tópico real e a diferença máxima de 1 s entre o stamp do
+scan e o stamp da pose usada.
 
 O módulo de LiDAR usa uma leitura real de `/scan`, pergunta o efeito de se
 aproximar de uma parede e pede que o aluno use os pontos para escolher um
@@ -172,6 +178,7 @@ de sensores em software; a GPU não foi necessária.
 | `pilot-acceptance` | **OK** |
 | LiDAR `/scan` | tipo, publisher e leituras reais OK |
 | Canvas LiDAR | pontos >20, toggle e pose temporal OK |
+| Visão do robô | canvas de perspectiva presente e renderizado |
 | Layout 1280x800 | terminal dentro da janela, sem rolagem vertical |
 
 ## Exemplos e comandos verificados
@@ -242,7 +249,7 @@ No navegador:
 
 **Passou no WSL:** build servido em `127.0.0.1:8080`, Tab de caminho,
 subcomando e listagem ambígua; atalho de saída; foco; condução repetida com
-curvas e ré; curso v2 (seis módulos); layout de duas colunas; LiDAR real
+curvas e ré; curso v2 (seis módulos); aula à esquerda em 40%, visor dividido em planta e POV e terminal à direita; LiDAR real
 headless, camada no Canvas, zoom e centralização; duas sessões, reconexão,
 lotação, TTL e limpeza; medição de recursos.
 

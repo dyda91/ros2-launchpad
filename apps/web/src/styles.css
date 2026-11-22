@@ -1032,7 +1032,7 @@ code {
 
 
 .right-stack {
-  grid-template-rows: minmax(12rem, 0.8fr) minmax(20rem, 1.2fr);
+  grid-template-rows: minmax(18rem, 1.18fr) minmax(18rem, 0.82fr);
   height: 100%;
   overflow: hidden;
 }
@@ -1100,4 +1100,133 @@ code {
   .mission-workspace {
     grid-template-rows: auto;
   }
+}
+
+
+.mission-terminal-help {
+  margin-top: 0.8rem;
+  padding: 0.7rem 0 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.mission-free-drive {
+  margin-top: 0.8rem;
+  padding: 0.8rem 0 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.mission-free-drive pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+
+@media (min-width: 961px) {
+  .mission-workspace {
+    grid-template-columns: minmax(18rem, 0.8fr) minmax(0, 1.8fr);
+  }
+}
+
+@media (min-width: 961px) {
+  .mission-workspace {
+    grid-template-columns: minmax(20rem, 1.25fr) minmax(18rem, 0.75fr);
+    grid-template-areas:
+      "viewport viewport"
+      "mission terminal";
+    grid-template-rows: minmax(20rem, 1.25fr) minmax(16rem, 0.75fr);
+  }
+
+  .mission-workspace > .right-stack {
+    display: contents;
+  }
+
+  .mission-workspace > .right-stack > .viewport-panel {
+    grid-area: viewport;
+  }
+
+  .mission-workspace > .right-stack > .terminal-panel {
+    grid-area: terminal;
+  }
+
+  .mission-workspace > .mission-panel {
+    grid-area: mission;
+  }
+}
+
+@media (min-width: 961px) {
+  .mission-workspace {
+    grid-template-columns: minmax(20rem, 2fr) minmax(0, 3fr);
+    grid-template-areas: "mission right";
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .mission-workspace > .right-stack {
+    display: grid;
+    grid-area: right;
+    grid-template-rows: minmax(18rem, 1.25fr) minmax(16rem, 0.75fr);
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .mission-workspace > .right-stack > .viewport-panel,
+  .mission-workspace > .right-stack > .terminal-panel {
+    grid-area: auto;
+  }
+
+  .mission-workspace > .mission-panel {
+    grid-area: mission;
+  }
+}
+
+.viewport-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.viewport-pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 0.5rem;
+  background: #080d12;
+}
+
+.viewport-pane .warehouse-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.pane-label {
+  position: absolute;
+  top: 0.45rem;
+  left: 0.55rem;
+  z-index: 2;
+  padding: 0.18rem 0.4rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 0.3rem;
+  background: rgba(8, 13, 18, 0.78);
+  color: #cbd5e1;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.robot-pane {
+  display: grid;
+  place-items: center;
+}
+
+.robot-view-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }

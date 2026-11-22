@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import MissionPanel from "./components/MissionPanel";
+import RobotView from "./components/RobotView";
 import PilotGate from "./components/PilotGate";
 import Terminal, { type TerminalHandle } from "./components/Terminal";
 import WarehouseCanvas from "./components/WarehouseCanvas";
@@ -379,6 +380,7 @@ export default function App() {
     setMissionStatus(null);
     setTerminalState(null);
     setInsertNotice("");
+    setScan(null);
     try {
       const status = await startSession();
       setSession(status);
@@ -447,6 +449,7 @@ export default function App() {
     setBusy(true);
     setMap(null);
     setPose(null);
+    setScan(null);
     setMissionStatus(null);
     setTerminalState(null);
     setInsertNotice("");
@@ -762,13 +765,22 @@ export default function App() {
                   data-scan-pose-stamp={scan?.pose?.stamp ?? 0}
                   data-zoom={zoom}
                 >
-                  <WarehouseCanvas
-                    map={map}
-                    pose={pose}
-                    scan={scan}
-                    showLidar={showLidar}
-                    zoom={zoom}
-                  />
+                  <div className="viewport-split">
+                    <div className="viewport-pane">
+                      <span className="pane-label">Planta 2D</span>
+                      <WarehouseCanvas
+                        map={map}
+                        pose={pose}
+                        scan={scan}
+                        showLidar={showLidar}
+                        zoom={zoom}
+                      />
+                    </div>
+                    <div className="viewport-pane robot-pane">
+                      <span className="pane-label">Visão do robô</span>
+                      <RobotView map={map} pose={pose} />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="viewport-loading">Carregando o mapa...</div>
@@ -843,33 +855,6 @@ export default function App() {
                 onInsertResult={handleInsertResult}
               />
             </div>
-            <p className="terminal-help">
-              Tab completa caminhos e comandos; em prefixo ambíguo, Tab
-              novamente lista as opções. Use Ctrl+C para interromper e
-              Ctrl+Shift+E para sair do terminal e focar a aula.
-            </p>
-            <details className="free-drive-help" data-testid="free-drive-help">
-              <summary>Condução livre: comandos</summary>
-              <p>
-                Para manter o robô andando, use o comando sem <code>timeout</code>
-                e interrompa com Ctrl+C. Para um tempo maior, troque 10 pelo
-                número de segundos desejado.
-              </p>
-              <pre>{`# andar por 10 segundos
-timeout 10 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
-
-# girar à esquerda
-timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: 0.8}}"
-
-# girar à direita
-timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: -0.8}}"
-
-# recuar
-timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: -0.15}}"
-
-# movimento contínuo; pare com Ctrl+C
-ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"`}</pre>
-            </details>
           </section>
           </div>
         </main>

@@ -19,6 +19,7 @@ test("Etapa 2A: terminal real, visor e ciclo da sessão", async ({ page }) => {
   );
   await expect(page.getByTestId("terminal")).toBeVisible();
   await expect(page.getByTestId("robot-pose")).toBeVisible();
+  await expect(page.getByTestId("robot-view")).toBeVisible();
 
   await page.setViewportSize({ width: 1600, height: 1000 });
   const wideMission = await page.getByTestId("mission-panel").boundingBox();
@@ -65,6 +66,10 @@ test("Etapa 2A: terminal real, visor e ciclo da sessão", async ({ page }) => {
     .locator("canvas.warehouse-canvas")
     .evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL().length);
   expect(canvasBytes).toBeGreaterThan(2000);
+  const viewBytes = await page
+    .getByTestId("robot-view")
+    .evaluate((canvas) => (canvas as HTMLCanvasElement).toDataURL().length);
+  expect(viewBytes).toBeGreaterThan(2000);
   await expect(page.locator(".map-legend")).toBeVisible();
   await page.getByTestId("zoom-in").click();
   await expect(page.getByTestId("robot-pose")).toHaveAttribute(

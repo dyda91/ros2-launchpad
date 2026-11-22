@@ -203,6 +203,8 @@ o que passou e o que permanece pendente.
   validação em domínio público continua pendente.
 - O progresso da missão sobrevive a recarregar a página, mas reinicia no
   reinício da missão e ao reiniciar API/runtime.
+- O visor é dividido em planta 2D e visão em primeira pessoa por raycasting
+  do mapa, sem câmera Gazebo.
 - O terminal tem foco explícito ao inserir, botão **Focar terminal**,
   **Ctrl+C** e **Ctrl+Shift+E**; Tab, condução, LiDAR e o curso de seis módulos
   são cobertos por `stage4-driving.spec.ts`, `stage3.spec.ts` e

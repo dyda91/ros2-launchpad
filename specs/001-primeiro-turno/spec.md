@@ -12,7 +12,8 @@
 - **Piloto público** (DNS/TLS reais, rootless validado, teste no host,
   autenticação de convidados e isolamento reforçado): pendente.
 - **Etapa 4A–4D:** foco/Tab, condução repetida, curso v2 em seis módulos,
-  layout de duas colunas e LiDAR headless implementados localmente.
+  aula à esquerda em cerca de 40% da largura; visor dividido em planta 2D e
+  visão em primeira pessoa, com LiDAR headless implementados localmente.
 - **Etapa 4E:** teste com iniciante e host externo pendente.
 
 ## Produto
