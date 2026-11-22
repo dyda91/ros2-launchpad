@@ -707,16 +707,16 @@ export default function MissionPanel({
             segundos desejado.
           </p>
           <pre>{`# andar por 10 segundos
-timeout 10 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
+ros2 topic pub --rate 10 --times 100 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
 
 # girar à esquerda
-timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: 0.8}}"
+ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: 0.8}}"
 
 # girar à direita
-timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: -0.8}}"
+ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: -0.8}}"
 
 # recuar
-timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: -0.15}}"
+ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: -0.15}}"
 
 # movimento contínuo; pare com Ctrl+C
 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"`}</pre>

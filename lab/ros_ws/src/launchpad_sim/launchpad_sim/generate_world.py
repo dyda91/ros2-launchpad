@@ -332,6 +332,7 @@ def build_world(config):
     for plugin_name, filename in (
         ("Physics", "gz-sim-physics-system"),
         ("UserCommands", "gz-sim-user-commands-system"),
+        ("SceneBroadcaster", "gz-sim-scene-broadcaster-system"),
         ("Sensors", "gz-sim-sensors-system"),
     ):
         plugin = ET.SubElement(

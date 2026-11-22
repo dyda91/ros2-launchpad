@@ -165,7 +165,7 @@ function drawScene(canvas: HTMLCanvasElement, map: MapData, pose: Pose | null) {
   const cameraHeight = 0.18;
   const columns = Math.max(160, Math.floor(width));
   for (let column = 0; column < columns; column += 1) {
-    const normalized = column / (columns - 1) - 0.5;
+    const normalized = 0.5 - column / (columns - 1);
     const hit = castRay(map, pose, pose.yaw + normalized * fieldOfView);
     if (hit === null) {
       continue;

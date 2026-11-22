@@ -50,6 +50,12 @@ Makefile                                    comandos reproduzíveis
 - `/cmd_vel` é a entrada do aluno. O watchdog publica em
   `/launchpad/_cmd_vel_safe`, ligado ao Gazebo.
 - `/odom` é a fonte de pose e velocidade para o Canvas e para a validação.
+  O Gazebo publica a pose de mundo em `/launchpad/_odom_world` e as rodas em
+  `/launchpad/_odom_encoder`; o nó `odom_merge` combina pose de mundo com
+  velocidade das rodas. As duas topics internas começam com `_` e ficam
+  ocultas do `ros2 topic list` do aluno.
+- O robô tem dois casters (traseiro e frontal); o frontal evita que o chassi
+  incline sob aceleração/frenagem e que o LiDAR atinja o piso.
 - O serviço `lab` é manual e serve à Etapa 1. Cada sessão web é um container
   efêmero criado pelo runtime a partir da mesma imagem, com nome
   `ros2-launchpad-session-<id>` e UDS própria.
@@ -116,7 +122,7 @@ seis módulos; os comandos abaixo são a referência da Etapa 1:
 ```bash
 ros2 topic list
 ros2 topic echo /odom
-timeout 3 ros2 topic pub --rate 10 /cmd_vel \
+ros2 topic pub --rate 10 --times 30 /cmd_vel \
   geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
 ```
 

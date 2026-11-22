@@ -102,7 +102,7 @@ test("Etapa 2A: terminal real, visor e ciclo da sessão", async ({ page }) => {
   const pose = page.getByTestId("robot-pose");
   const before = Number(await pose.getAttribute("data-x"));
   await page.keyboard.type(
-    'timeout 3 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"'
+    'ros2 topic pub --rate 10 --times 30 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"'
   );
   await page.keyboard.press("Enter");
   await expect

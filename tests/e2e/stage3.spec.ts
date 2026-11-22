@@ -244,7 +244,7 @@ test("Primeiro Turno: seis módulos, zona e reinício", async ({
   );
   await page.getByTestId("focus-terminal").click();
   await page.keyboard.type(
-    'timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"'
+    'ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"'
   );
   await page.keyboard.press("Enter");
   await expect(terminalStateAfterSuccess).toHaveAttribute(

@@ -103,6 +103,12 @@ def generate_launch_description():
         ],
     )
 
+    odom_merge = Node(
+        package="launchpad_sim",
+        executable="odom_merge",
+        output="screen",
+    )
+
     monitor = Node(
         package="launchpad_sim",
         executable="mission_monitor",
@@ -122,6 +128,7 @@ def generate_launch_description():
             gz_sim,
             robot_state_publisher,
             bridge,
+            odom_merge,
             watchdog,
             monitor,
             TimerAction(period=2.0, actions=[spawn_robot]),

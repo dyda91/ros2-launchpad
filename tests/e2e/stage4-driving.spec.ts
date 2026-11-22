@@ -62,6 +62,7 @@ async function runCommand(page: Page, command: string) {
   await expect(state).toHaveAttribute("data-line-empty", "true", {
     timeout: 10_000
   });
+  await page.waitForTimeout(400);
 }
 
 function dot(ax: number, ay: number, bx: number, by: number) {
@@ -90,7 +91,7 @@ test("digitação imediata depois de a sessão ficar pronta", async ({ page }) =
   await startSession(page);
   const state = page.getByTestId("terminal-state");
   await page.keyboard.type(
-    'timeout 1 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}}"'
+    'ros2 topic pub --rate 10 --times 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}}"'
   );
   await page.keyboard.press("Enter");
   await expect(state).toHaveAttribute("data-running", "true", {
@@ -179,7 +180,7 @@ test("condução repetida na mesma sessão: frente, parada, curvas e ré", async
 
   await runCommand(
     page,
-    'timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"'
+    'ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"'
   );
   await waitStopped(page);
   const forward = await pose(page);
@@ -190,7 +191,7 @@ test("condução repetida na mesma sessão: frente, parada, curvas e ré", async
 
   await runCommand(
     page,
-    'timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: 0.8}}"'
+    'ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: 0.8}}"'
   );
   await waitStopped(page);
   const left = await pose(page);
@@ -198,7 +199,7 @@ test("condução repetida na mesma sessão: frente, parada, curvas e ré", async
 
   await runCommand(
     page,
-    'timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}}"'
+    'ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}}"'
   );
   await waitStopped(page);
   const secondForward = await pose(page);
@@ -215,7 +216,7 @@ test("condução repetida na mesma sessão: frente, parada, curvas e ré", async
 
   await runCommand(
     page,
-    'timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: -0.8}}"'
+    'ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: -0.8}}"'
   );
   await waitStopped(page);
   const right = await pose(page);
@@ -224,7 +225,7 @@ test("condução repetida na mesma sessão: frente, parada, curvas e ré", async
   const beforeReverse = await pose(page);
   await runCommand(
     page,
-    'timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: -0.15}}"'
+    'ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: -0.15}}"'
   );
   await waitStopped(page);
   const reversed = await pose(page);
@@ -254,7 +255,7 @@ test("focar terminal mantém a condução após avançar um desafio", async ({
   const before = await pose(page);
   await runCommand(
     page,
-    'timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}}"'
+    'ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}}"'
   );
   await waitStopped(page);
   const after = await pose(page);
@@ -284,7 +285,7 @@ test("digitação livre depois de navegar sem clicar no terminal", async ({
   );
   const state = page.getByTestId("terminal-state");
   await page.keyboard.type(
-    'timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}}"'
+    'ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.15}}"'
   );
   await page.keyboard.press("Enter");
   await expect(state).toHaveAttribute("data-running", "true", {

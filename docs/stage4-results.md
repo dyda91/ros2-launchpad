@@ -20,7 +20,7 @@ de uma rodada de regressão que use `sessions-clean`.
 Build verificado nesta rodada:
 
 ```text
-assets/index-CrOv_6nc.js
+assets/index-BMOItHD_.js
 assets/index-DFNCHoZy.css
 ```
 
@@ -110,7 +110,8 @@ o visor e o terminal ficam à direita, com o terminal abaixo do visor. Em telas
 menores tudo empilha. O visor é dividido em duas metades: **Planta 2D** e **Visão do robô**. A visão
 em primeira pessoa é uma projeção em perspectiva das paredes e obstáculos a
 partir de `pose.x`, `pose.y` e `pose.yaw` (raycasting no mapa), com FOV de 60°;
-não é uma câmera Gazebo. A planta tem legenda de
+não é uma câmera Gazebo. A direção horizontal foi corrigida: o lado esquerdo
+da tela corresponde ao lado esquerdo do robô. A planta tem legenda de
 parede/obstáculo/zona/LiDAR, zoom de 1,00x a 3,00x e botão **Centralizar**.
 
 O layout ocupa a altura da janela. A aula ocupa toda a lateral esquerda, de
@@ -134,6 +135,9 @@ agente guarda um histórico curto de poses e anexa ao scan a pose de `/odom`
 mais próxima do `header.stamp`; o Canvas usa essa pose, não a pose mais
 recente da tela. Antes, a nuvem capturada antes de uma curva era desenhada
 com o yaw novo, girando os pontos e criando uma parede aparente à frente.
+A telemetria envia pose a 20 Hz e scan a 10 Hz (sem repetir o mesmo scan),
+para o movimento não parecer em saltos; o `/scan` real foi conferido e não
+contém retorno de chão: os pontos são paredes, caixas e a coluna.
 Depois dos pontos, o Canvas redesenha paredes e contornos dos obstáculos: os
 pontos que coincidem com a geometria real do mapa ficam cobertos pela parede
 ou pelo obstáculo, e não parecem uma parede solta no espaço livre. A camada
@@ -145,6 +149,33 @@ O módulo de LiDAR usa uma leitura real de `/scan`, pergunta o efeito de se
 aproximar de uma parede e pede que o aluno use os pontos para escolher um
 desvio. A entrega continua validada exclusivamente por `delivered` do
 `mission_monitor`.
+
+### Investigação da linha de pontos
+
+A linha curta à frente não era criada pelo Canvas. Ela já existia no `/scan`
+bruto do Gazebo e no `/scan` do ROS. Em uma sessão com o robô em
+`x≈0,78 m, y≈0`, o modelo físico estava em `z=0,145 m` e com **pitch
+≈0,402 rad (23°)**; o feixe frontal retornava **0,918 m**, embora a parede
+leste estivesse a **6,62 m**. O robô tinha apenas um caster traseiro e, ao
+acelerar/frear, inclinava até apoiar o chassi no piso; o LiDAR inclinado
+passava a devolver o chão.
+
+A correção não foi filtrar pontos próximos. Foi adicionado um **caster
+frontal** ao URDF, mantendo a base nivelada: na pose inicial o modelo voltou a
+`z=0,150 m` e `pitch=0`. Em `x≈0,566 m`, o feixe frontal mediu **6,834 m**,
+igual à distância esperada `7,4 - 0,566 = 6,834 m`; o obstáculo real
+`caixa_a` continua aparecendo nos feixes laterais.
+
+Também havia diferença entre a odometria das rodas e a pose física: após um
+giro, o modelo Gazebo estava em `yaw≈0,864 rad`, enquanto o `/odom` das
+rodas indicava `yaw≈0,794 rad`; o Canvas projetava o scan com o yaw errado.
+O Gazebo agora publica a odometria de mundo em `/launchpad/_odom_world` e a
+das rodas em `/launchpad/_odom_encoder`; o nó `odom_merge` publica `/odom`
+com a **pose de mundo** e a **velocidade das rodas**. As duas topics internas
+ficam ocultas do `ros2 topic list` do aluno.
+
+A visão do robô também foi corrigida: o eixo horizontal estava espelhado. A
+pose a 20 Hz e o scan a 10 Hz reduzem a aparência de pequenas paradas.
 
 ## Medições no WSL
 
@@ -179,6 +210,7 @@ de sensores em software; a GPU não foi necessária.
 | LiDAR `/scan` | tipo, publisher e leituras reais OK |
 | Canvas LiDAR | pontos >20, toggle e pose temporal OK |
 | Visão do robô | canvas de perspectiva presente e renderizado |
+| Caster frontal + odom de mundo | pitch 0 e `/odom` alinhado ao scan |
 | Layout 1280x800 | terminal dentro da janela, sem rolagem vertical |
 
 ## Exemplos e comandos verificados

@@ -100,14 +100,14 @@ steps:
     concept: "O eixo X do mapa é fixo; a frente do robô muda quando ele gira. linear.x positivo anda para a frente do robô, não necessariamente para o leste do mapa. angular.z positivo gira à esquerda; negativo gira à direita. O comando precisa ser mantido por um tempo; o watchdog para o robô 0,5 s após o último comando. A ré é linear.x negativo. O robô se move no plano x-y, não só no eixo X."
     why: "Para ir a um ponto depois de uma curva é preciso compor velocidade linear com a orientação; usar só x do mapa produz trajetórias erradas."
     example:
-      - "timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\"   # avança 2 s"
-      - "timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\" # esquerda"
-      - "timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: -0.8}}\" # direita"
-      - "timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: -0.15}}\" # ré"
+      - "ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\"   # avança 2 s"
+      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\" # esquerda"
+      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: -0.8}}\" # direita"
+      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: -0.15}}\" # ré"
     action: "Escolha um ponto no mapa e monte uma sequência de avançar, girar e avançar. Execute os comandos com espera do prompt entre eles."
     exercise: "Faça esquerda, avance, direita e ré. Confira o yaw e o deslocamento no mapa depois de cada passo."
     observe: "Depois de girar, avançar muda x e y no mapa. Para voltar ao prompt de um comando contínuo, use Ctrl+C."
-    insertCommand: "timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
+    insertCommand: "ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
     prediction:
       prompt: "Se o robô acabou de girar 90° à esquerda, o que linear.x positivo faz?"
       options:
@@ -115,7 +115,7 @@ steps:
         - "Move o robô para a direita do mapa, independentemente da orientação."
         - "Gira o robô sem deslocar."
       answerIndex: 0
-    command: "timeout 3 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
+    command: "ros2 topic pub --rate 10 --times 30 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
     minDisplacementM: 0.12
     stopSpeedMps: 0.02
     hints:
@@ -124,10 +124,10 @@ steps:
       - "Uma sequência útil é: timeout 2 ... linear x; timeout 1.5 ... angular z; timeout 2 ... linear x."
       - "Para conferir a ré, compare o deslocamento com a frente do robô, não só com o eixo X do mapa."
     solution:
-      - "timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\""
-      - "timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
-      - "timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: -0.8}}\""
-      - "timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: -0.15}}\""
+      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\""
+      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
+      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: -0.8}}\""
+      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: -0.15}}\""
     feedback: "Isso. Você combinou translação e rotação e observou a pose real."
   - id: lidar
     kind: quiz
@@ -163,9 +163,9 @@ steps:
     concept: "Planeje uma sequência usando a frente do robô e a pose no mapa. Use o LiDAR para identificar o obstáculo e escolha um desvio. A entrega só conta quando o robô fica dentro da zona e parado por 2 s; o mission_monitor é a fonte de verdade."
     why: "A entrega reúne terminal, ROS, odometria, condução e percepção em um objetivo verificável."
     example:
-      - "timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
-      - "timeout 1.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\""
-      - "timeout 2 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
+      - "ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
+      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\""
+      - "ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
     action: "Escolha um desvio para o obstáculo, conduza até a zona de coleta e pare dentro dela."
     exercise: "Use a camada LiDAR para escolher esquerda ou direita, avance, corrija o rumo e pare na zona."
     observe: "O painel mostra in_zone, speed_mps e stopped_for_s; delivered vira true após 2 s parado."

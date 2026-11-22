@@ -153,6 +153,8 @@ class AgentApp:
             return web.json_response({"error": "unauthorized"}, status=403)
         ws = web.WebSocketResponse(heartbeat=30)
         await ws.prepare(request)
+        last_scan_stamp = None
+        last_mission = None
         try:
             while not ws.closed:
                 state = self.current_state()
@@ -165,16 +167,18 @@ class AgentApp:
                         json.dumps({"type": "pose", **odom})
                     )
                 mission = self.ros.latest_mission()
-                if mission is not None:
+                if mission is not None and mission != last_mission:
+                    last_mission = mission
                     await ws.send_str(
                         json.dumps({"type": "mission", **mission})
                     )
                 scan = self.ros.latest_scan()
-                if scan is not None:
+                if scan is not None and scan.get("stamp") != last_scan_stamp:
+                    last_scan_stamp = scan.get("stamp")
                     await ws.send_str(
                         json.dumps({"type": "scan", **scan})
                     )
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.05)
         finally:
             await ws.close()
         return ws

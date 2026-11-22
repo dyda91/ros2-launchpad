@@ -133,11 +133,11 @@ Mova o robô com comandos finitos; para movimento contínuo, remova o timeout e
 pare com Ctrl+C:
 
 ```bash
-timeout 2 ros2 topic pub --rate 10 /cmd_vel \
+ros2 topic pub --rate 10 --times 20 /cmd_vel \
   geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
-timeout 1.5 ros2 topic pub --rate 10 /cmd_vel \
+ros2 topic pub --rate 10 --times 15 /cmd_vel \
   geometry_msgs/msg/Twist "{angular: {z: 0.8}}"
-timeout 1.5 ros2 topic pub --rate 10 /cmd_vel \
+ros2 topic pub --rate 10 --times 15 /cmd_vel \
   geometry_msgs/msg/Twist "{linear: {x: -0.15}}"
 ```
 
