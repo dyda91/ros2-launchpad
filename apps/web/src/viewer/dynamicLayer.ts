@@ -1,4 +1,5 @@
 import { screenX, screenY, type View } from "./camera";
+import { drawScan, drawSector } from "./lidarDraw";
 import { drawRobot, drawTf, drawVelocity } from "./robotDraw";
 import type { ViewerState } from "./state";
 
@@ -52,57 +53,6 @@ function drawGuides(
     );
     context.stroke();
     context.restore();
-  }
-  if (guide.sectorDeg !== undefined && pose !== null) {
-    const sector = degrees(guide.sectorDeg);
-    const origin = state.scan?.pose ?? pose;
-    context.save();
-    context.fillStyle = "rgba(250, 204, 21, 0.18)";
-    context.strokeStyle = "rgba(250, 204, 21, 0.8)";
-    context.lineWidth = 1.5;
-    context.beginPath();
-    context.moveTo(screenX(view, origin.x), screenY(view, origin.y));
-    for (let index = 0; index <= 12; index += 1) {
-      const angle = origin.yaw - sector + (2 * sector * index) / 12;
-      context.lineTo(
-        screenX(view, origin.x + 2 * Math.cos(angle)),
-        screenY(view, origin.y + 2 * Math.sin(angle))
-      );
-    }
-    context.closePath();
-    context.fill();
-    context.stroke();
-    context.restore();
-  }
-}
-
-function drawScan(
-  context: CanvasRenderingContext2D,
-  view: View,
-  state: ViewerState
-) {
-  const scan = state.scan;
-  const pose = state.pose;
-  if (!state.showLidar || scan === null || pose === null) {
-    return;
-  }
-  const origin = scan.pose ?? pose;
-  context.fillStyle = "rgba(96, 165, 250, 0.9)";
-  for (let index = 0; index < scan.ranges.length; index += 1) {
-    const range = scan.ranges[index];
-    if (range === null || range < scan.range_min || range > scan.range_max) {
-      continue;
-    }
-    const angle = origin.yaw + scan.angle_min + index * scan.angle_increment;
-    context.beginPath();
-    context.arc(
-      screenX(view, origin.x + range * Math.cos(angle)),
-      screenY(view, origin.y + range * Math.sin(angle)),
-      Math.max(1.5, 0.03 * view.scale),
-      0,
-      Math.PI * 2
-    );
-    context.fill();
   }
 }
 
@@ -194,6 +144,7 @@ export function drawDynamic(
   }
   drawGuides(context, view, state);
   drawScan(context, view, state);
+  drawSector(context, view, state);
   if (state.layers.tf) {
     drawTf(context, view, state.pose);
   }

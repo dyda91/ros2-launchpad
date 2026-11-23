@@ -187,12 +187,15 @@ function stoppedCriterion(pose: Pose | null): Criterion {
   };
 }
 
-export function frontReading(scan: ScanData | null, sectorDeg: number) {
+export function frontReading(
+  scan: ScanData | null,
+  sectorDeg: number
+): number | null {
   if (scan === null) {
     return null;
   }
   const sector = toRadians(sectorDeg);
-  let best: number | null = null;
+  let best = null as number | null;
   scan.ranges.forEach((value, index) => {
     if (value === null || !Number.isFinite(value)) {
       return;

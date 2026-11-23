@@ -9,7 +9,6 @@ import type {
 export interface Layers {
   grid: boolean;
   tf: boolean;
-  scan: boolean;
   trail: boolean;
   velocity: boolean;
   markings: boolean;
@@ -20,7 +19,6 @@ export interface Layers {
 export const defaultLayers: Layers = {
   grid: true,
   tf: true,
-  scan: true,
   trail: true,
   velocity: true,
   markings: true,
