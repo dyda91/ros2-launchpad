@@ -289,3 +289,32 @@ lotação, TTL e limpeza; medição de recursos.
 público, duas pessoas iniciantes e medição de LiDAR no hardware do host. A
 validação de obstáculo é pedagógica e usa `delivered` do monitor; não há uma
 nova regra automática que force uma rota específica.
+
+## 4F — Curso prático v3 (2026-11-23)
+
+O curso passou a ter nove módulos (terminal, nós, tópicos, mensagens,
+odometria, movimento, rotação, LiDAR e entrega) e 23 desafios conferidos pelo
+laboratório: comando executado no terminal, resposta, quiz, pose, leitura do
+LiDAR e entrega pelo `mission_monitor`. As medições que calibram regiões e
+tolerâncias estão em `docs/course-calibration.md`.
+
+**Executado e aprovado (dados reais do simulador):**
+
+| Alvo | Resultado |
+|---|---|
+| `make test-mission` | 22 testes OK |
+| `make e2e-3` | 3/3: percurso dos 23 desafios, comando errado e falha de reinício |
+| `make e2e` (2A + curso) | 4/4 |
+| `make e2e-4a` | 8/8 |
+| `make e2e-2b` (Playwright 2B, pilha com TTL curto) | 2/2 |
+| `make stage1`, `make stage2a`, `make test-pilot` | OK |
+
+O Playwright conduz a rota em malha fechada (`driveTo`, `rotateTo`), pois a
+mesma sequência fixa de comandos não repete a pose (±6%).
+
+**Não concluído neste host (ambiente, não código):** o host tem usuário
+`1001` e os containers rodam como `1000`. Por isso `make stage2b` falha no
+`find run/sessions` do script de integração (diretórios de sessão ilegíveis) e
+`make pilot-acceptance` falha ao gravar `run/pilot` (sem permissão da API).
+Ambos exigem ajustar a posse de `run/` (por exemplo, `sudo chown` ou ACL para
+o UID 1000) e repetir. Permanece pendente a 4E: iniciante e host externo.

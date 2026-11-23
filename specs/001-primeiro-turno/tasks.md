@@ -198,4 +198,7 @@ layout 1600 / 1280 / 800 px          três colunas / desafio acima / empilhado
 | T5.7 | concluído | 4B: aula à esquerda em ~40%, visor e terminal à direita | `stage2a.spec.ts` e `make e2e` |
 | T5.8 | concluído | 4C: curso v2 com seis módulos e Tab validado | `test-mission` 6/6; `stage4-driving` |
 | T5.9 | concluído | 4D: LiDAR real, sensores headless e obstáculos | `/scan` real; camada no Canvas |
+| T5.12 | concluído | 4F: curso v3, nove módulos e 23 desafios verificáveis (command, answer, quiz, pose, scan, delivery) | `test-mission` 22/22; `make e2e-3` 3/3 com os 23 desafios no simulador real |
+| T5.13 | concluído | 4F: progresso v3 e eventos `task_entered`/`task_done`/`answer_wrong` sem comandos nem respostas | `test-session-capacity`, `test-pilot` |
+| T5.14 | concluído | 4F: specs e2e adaptados ao curso v3 (`course-helpers.ts`) | `make e2e` 4/4, `make e2e-4a` 8/8, `make e2e-2b` 2/2 |
 | T5.11 | pendente | 4E: teste com iniciante e host externo | depende de pessoa/host |

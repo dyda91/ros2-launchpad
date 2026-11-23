@@ -117,7 +117,7 @@ ros2 launch launchpad_bringup lab.launch.py
 ```
 
 Dentro do terminal do navegador, o ambiente já está carregado. O curso guia
-seis módulos; os comandos abaixo são a referência da Etapa 1:
+nove módulos e 23 desafios práticos; os comandos abaixo são a referência da Etapa 1:
 
 ```bash
 ros2 topic list
@@ -212,7 +212,7 @@ o que passou e o que permanece pendente.
 - O visor é dividido em planta 2D e visão em primeira pessoa por raycasting
   do mapa, sem câmera Gazebo.
 - O terminal tem foco explícito ao inserir, botão **Focar terminal**,
-  **Ctrl+C** e **Ctrl+Shift+E**; Tab, condução, LiDAR e o curso de seis módulos
+  **Ctrl+C** e **Ctrl+Shift+E**; Tab, condução, LiDAR e o curso prático de nove módulos
   são cobertos por `stage4-driving.spec.ts`, `stage3.spec.ts` e
   `stage2a.spec.ts`.
 - A solução completa da missão é opcional e calibrada para a pose após o

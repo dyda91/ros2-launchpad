@@ -194,7 +194,7 @@ make test-pilot  # convites, controle, rate limit e eventos
 make pilot-up    # API/runtime com convite e hardening
 make pilot-down  # encerra o piloto e remove as sessões
 make pilot-admin # CLI de convites/controle
-make e2e         # Playwright 2A + curso de seis módulos
+make e2e         # Playwright 2A + curso prático de nove módulos
 make e2e-4a      # Tab, foco, condução, Ctrl+C e comandos ROS
 make stage3      # Etapa 1 + conteúdo/API + aplicação + Playwright
 ```
@@ -319,7 +319,7 @@ make measure-2b  # medição de duas sessões
 make stage3      # aceite da missão Primeiro Turno
 make e2e         # Playwright completo (2A + curso)
 make e2e-4a      # regressão de Tab/condução/comandos ROS
-make test-mission # conteúdo do curso de seis módulos
+make test-mission # conteúdo do curso prático de nove módulos
 make test-api    # restart com falha e retry
 make test-session-capacity # capacidade, progresso, TTL e reconciliação
 make lab-up      # laboratório manual
