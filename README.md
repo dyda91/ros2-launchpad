@@ -37,11 +37,13 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
   exercícios e dicas graduais.
 - Tab real no xterm para caminhos e subcomandos ROS 2; `Ctrl+Shift+E` sai do
   terminal e leva o foco à aula.
-- Visor dividido em planta 2D e visão em primeira pessoa do robô, com
-  orientação, zoom, recentralização, legenda e camada LiDAR.
+- Visor único visto de cima, no estilo RViz: armazém com piso, racks e
+  pallets, robô fiel ao URDF, TF, rastro, vetor de velocidade, LiDAR por
+  distância, painel de camadas, zoom, pan e seguir robô.
 - Terminal xterm.js conectado a um PTY bash real dentro do container da
   sessão.
-- Visor Canvas 2D com o mesmo `map.json` do simulador e pose real de `/odom`.
+- Visor Canvas 2D com o mesmo `map.json` do simulador e pose real de `/odom`;
+  nada desenhado como obstáculo deixa de existir no Gazebo.
 - Curso guiado em seis módulos, com ação/observação/dica e conteúdo em YAML.
 - Validação da entrega pelo `mission_monitor` real; passar pela zona em
   movimento não conclui.

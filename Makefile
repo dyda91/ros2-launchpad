@@ -18,7 +18,7 @@ SESSION_WARNING_SECONDS ?= 120
 SESSION_MONITOR_SECONDS ?= 2
 SESSION_ROS_DOMAIN_ID ?= 42
 
-.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-terminal test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 e2e-4a stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
+.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-terminal test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 e2e-4a e2e-viewer viewer-capture test-robot stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
 
 help:
 	@printf '%s\n' \
@@ -36,6 +36,9 @@ help:
 		'session-down força a remoção da sessão' \
 		'e2e         executa Playwright contra a aplicação local' \
 		'e2e-4a      executa a regressão de condução repetida da 4A' \
+		'e2e-viewer  executa o Playwright do visor (camadas, câmera e rastro)' \
+		'viewer-capture gera capturas e o tempo de frame em docs/visor' \
+		'test-robot  confere as dimensões do robô no visor contra o URDF' \
 		'test-mission valida o conteúdo da missão' \
 		'test-api    testa falha/retry do restart da sessão' \
 		'stage2a     executa o aceite completo da Etapa 2A' \
@@ -130,7 +133,20 @@ e2e-image:
 
 e2e: up e2e-image stage2a-clean
 	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) \
-		npx playwright test stage2a.spec.ts stage3.spec.ts
+		npx playwright test stage2a.spec.ts stage3.spec.ts viewer.spec.ts
+
+e2e-viewer: up e2e-image stage2a-clean
+	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) \
+		npx playwright test viewer.spec.ts
+
+viewer-capture: up e2e-image stage2a-clean
+	mkdir -p docs/visor
+	docker run --rm --network host --ipc host --shm-size=1g \
+		-v "$(CURDIR)/docs/visor:/out" -e CAPTURE_DIR=/out $(E2E_IMAGE) \
+		npx playwright test viewer-capture.spec.ts
+
+test-robot:
+	python3 tests/integration/test_robot_constants.py -v
 
 e2e-2a: up e2e-image stage2a-clean
 	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) npx playwright test stage2a.spec.ts

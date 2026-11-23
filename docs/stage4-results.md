@@ -107,7 +107,7 @@ valida os seis módulos e os novos campos.
 
 No desktop, a aula ocupa cerca de 40% da largura, de cima a baixo, à esquerda;
 o visor e o terminal ficam à direita, com o terminal abaixo do visor. Em telas
-menores tudo empilha. O visor é dividido em duas metades: **Planta 2D** e **Visão do robô**. A visão
+menores tudo empilha. (Substituído na 4G: o visor passou a ser único.) O visor era dividido em duas metades: **Planta 2D** e **Visão do robô**. A visão
 em primeira pessoa é uma projeção em perspectiva das paredes e obstáculos a
 partir de `pose.x`, `pose.y` e `pose.yaw` (raycasting no mapa), com FOV de 60°;
 não é uma câmera Gazebo. A direção horizontal foi corrigida: o lado esquerdo
@@ -318,3 +318,80 @@ mesma sequência fixa de comandos não repete a pose (±6%).
 `make pilot-acceptance` falha ao gravar `run/pilot` (sem permissão da API).
 Ambos exigem ajustar a posse de `run/` (por exemplo, `sudo chown` ou ACL para
 o UID 1000) e repetir. Permanece pendente a 4E: iniciante e host externo.
+
+## 4G — Visor de cima estilo RViz (2026-11-23)
+
+A visão em primeira pessoa (`RobotView`) e a planta simples (`WarehouseCanvas`)
+foram substituídas por um único visor, `WarehouseViewer`, em Canvas 2D e sem
+bibliotecas novas. Branch `feat/visor-rviz`, um commit por fase.
+
+**Arquitetura.** Camada estática em bitmap de mundo (piso, paredes, marcações,
+grade, obstáculos, zona), refeita só ao mudar o nível de resolução (60, 120,
+240 ou 400 px/m), a grade ou as marcações; pan, zoom e seguir robô apenas
+reposicionam o bitmap. Camada dinâmica (rastro, LiDAR, TF, robô, guias do
+curso, escala) desenhada por `requestAnimationFrame` sob demanda, com
+`devicePixelRatio` e um único `ResizeObserver`. Texturas e manchas usam ruído
+determinístico com seed; não há imagens externas.
+
+**Mundo.** `armazem.yaml` ganhou `rack_norte`, `rack_leste` e `rack_sul`
+(caixas de 1,4 m de altura junto às paredes, fora do corredor `x=3,2`, de
+`y=3,6`, das faixas A/B e do setor frontal da caixa C) e o campo opcional
+`kind` (`crate`, `rack`, `pillar`), propagado ao `map.json`. As rotas e regiões
+do curso não mudaram.
+
+**Robô.** Constantes de `robot.ts` (chassi 0,46 x 0,34, rodas r 0,09 e
+largura 0,035 a 0,38 de separação, dois casters, LiDAR r 0,055), conferidas por
+`make test-robot` contra o xacro. TF de `odom` e `base_link`, seta de `vx`, arco
+de `wz`, rastro de 30 s e botão **Limpar rastro** (zerado também no reinício).
+
+**LiDAR.** Pontos em metros reais com `scan.pose`, escala viridis de 0 a
+`range_max`, persistência de 1, 3, 5 ou 10 varreduras, raios opcionais e setor
+frontal com a menor distância (o setor do curso usa o mesmo desenho, em
+amarelo).
+
+**Painel.** Displays com LaserScan, Grade, TF, Rastro, Velocidade, Marcações do
+piso, Raios e Setor frontal; leitura de `x`, `y`, `yaw`, `v` e `ω` com
+`Fixed Frame: odom`; coordenadas sob o cursor; escala; norte (+y); legenda.
+Zoom pela roda e pelos botões (1x a 6x), pan arrastando, **Seguir robô** e
+**Centralizar**. Os `data-*` do visor foram preservados e o canvas expõe
+`data-frame-ms`, `data-frames`, `data-trail-points` e `data-scan-frames`.
+
+**Verificação executada nesta fase:**
+
+| Alvo | Resultado |
+|---|---|
+| `npm run build` (tsc + vite, via `make build-app`) | OK |
+| `make test-robot` | 2 testes OK |
+| geometria e conteúdo (`test_world_geometry.py`, `test_mission_content.py`) | 6 e 22 testes OK, com os 6 obstáculos |
+| `viewer.spec.ts` (camadas, roda, pan, seguir, rastro, limpar rastro, cursor) | 1/1 |
+| `viewer-capture.spec.ts` | início, LiDAR com rastro e zona em `docs/visor/` |
+
+Capturas: `docs/visor/visor-inicio.png`, `visor-lidar-rastro.png` e
+`visor-zona.png`. Conferência visual: os pontos do LiDAR ficam sobre as bordas
+das caixas, dos racks, do pilar e das paredes; o robô, o rastro e os pontos se
+destacam do concreto; as faixas e o zebrado são planos e não parecem
+obstáculos. A porta de doca opcional não foi desenhada para não sugerir uma
+passagem que não existe.
+
+**Desempenho** (Chromium headless em container, sem GPU, LiDAR a 10 Hz e
+odometria contínua; `docs/visor/visor-desempenho.json`): tempo médio de desenho
+de 2 a 4 ms por frame (média móvel) e cerca de 22 quadros por segundo durante a
+condução. `viewer.spec.ts` exige média abaixo de 16 ms.
+
+**Portão após a 4G (2026-11-23):**
+
+| Alvo | Resultado |
+|---|---|
+| `make test-robot` | OK |
+| `make stage1` | OK |
+| `make stage2a` | OK (1/1) |
+| `make e2e` (2A, curso e visor) | 5/5 |
+| `make e2e-4a` | 8/8 |
+| `make e2e-2b` (Playwright 2B, pilha com TTL curto) | 2/2 |
+| `make test-pilot` | OK |
+
+**Pendente:** `make stage2b` (script de integração) e `make pilot-acceptance`
+continuam falhando neste host por permissão de `run/` (usuário 1001 x
+containers 1000, ver 4F); precisam de `chown` ou ACL com `sudo` e nova
+execução. A comparação manual da pose com `ros2 topic echo --once /odom` não
+foi feita; os e2e de pose cobrem o `data-x`, `data-y` e `data-yaw` do visor.
