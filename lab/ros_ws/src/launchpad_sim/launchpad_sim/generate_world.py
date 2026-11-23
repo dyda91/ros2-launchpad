@@ -9,6 +9,9 @@ import xml.etree.ElementTree as ET
 import yaml
 
 
+OBSTACLE_KINDS = ("crate", "rack", "pillar")
+
+
 def as_float(value, field):
     try:
         return float(value)
@@ -88,6 +91,10 @@ def load_config(path):
                 raise ValueError(f"obstacles[{index}] dimensions must be positive")
         else:
             raise ValueError(f"unsupported obstacle type: {obstacle_type!r}")
+        default_kind = "pillar" if obstacle_type == "cylinder" else "crate"
+        obstacle["kind"] = str(item.get("kind", default_kind))
+        if obstacle["kind"] not in OBSTACLE_KINDS:
+            raise ValueError(f"unsupported obstacle kind: {obstacle['kind']!r}")
         obstacles.append(obstacle)
 
     config = {

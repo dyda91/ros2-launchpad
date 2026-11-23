@@ -77,9 +77,12 @@ export interface Pose {
   stamp: number;
 }
 
+export type ObstacleKind = "crate" | "rack" | "pillar";
+
 export interface BoxObstacle {
   id: string;
   type: "box";
+  kind: ObstacleKind;
   center: [number, number];
   size: [number, number, number];
 }
@@ -87,6 +90,7 @@ export interface BoxObstacle {
 export interface CylinderObstacle {
   id: string;
   type: "cylinder";
+  kind: ObstacleKind;
   center: [number, number];
   radius: number;
   height: number;
