@@ -183,7 +183,7 @@ export default function WarehouseViewer(props: WarehouseViewerProps) {
         (bounds.maxX - bounds.minX) * view.scale,
         (bounds.maxY - bounds.minY) * view.scale
       );
-      drawDynamic(context, view, state);
+      drawDynamic(context, view, state, started);
       const elapsed = performance.now() - started;
       frames += 1;
       average = frames === 1 ? elapsed : average * 0.95 + elapsed * 0.05;
