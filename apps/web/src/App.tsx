@@ -780,7 +780,7 @@ export default function App() {
                 >
                   LiDAR {showLidar ? "ligado" : "desligado"}
                 </button>
-                <span className="panel-note">referencial odom</span>
+                
               </div>
             </div>
             <div className="viewport">
@@ -813,6 +813,7 @@ export default function App() {
                     guide={guide}
                     onZoomChange={setZoom}
                     onFollowChange={setFollow}
+                    onShowLidarChange={setShowLidar}
                   />
                 </div>
               ) : (
@@ -821,24 +822,20 @@ export default function App() {
             </div>
             <div className="map-legend">
               <span><i className="legend-wall" />parede</span>
-              <span><i className="legend-obstacle" />obstáculo</span>
-              <span><i className="legend-zone" />zona</span>
-              <span><i className="legend-lidar" />LiDAR</span>
+              <span><i className="legend-crate" />pallet</span>
+              <span><i className="legend-rack" />rack</span>
+              <span><i className="legend-pillar" />pilar</span>
+              <span><i className="legend-zone" />zona de coleta</span>
+              <span><i className="legend-robot" />robô (frente em ciano)</span>
+              <span><i className="legend-lidar" />LiDAR (amarelo perto, azul longe)</span>
+              <span><i className="legend-axis-x" />eixo x</span>
+              <span><i className="legend-axis-y" />eixo y</span>
+              <span><i className="legend-trail" />rastro</span>
+              <span><i className="legend-velocity" />v linear</span>
+              <span><i className="legend-angular" />ω</span>
+              <span><i className="legend-guide" />guia do desafio</span>
             </div>
-            <div className="telemetry">
-              <span>
-                x <strong>{(pose?.x ?? 0).toFixed(2)} m</strong>
-              </span>
-              <span>
-                y <strong>{(pose?.y ?? 0).toFixed(2)} m</strong>
-              </span>
-              <span>
-                yaw <strong>{(pose?.yaw ?? 0).toFixed(2)} rad</strong>
-              </span>
-              <span>
-                v <strong>{speed.toFixed(2)} m/s</strong>
-              </span>
-            </div>          </section>
+          </section>
 
           <section className="panel terminal-panel">
             <div className="panel-header">

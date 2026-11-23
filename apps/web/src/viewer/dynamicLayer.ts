@@ -1,4 +1,5 @@
 import { screenX, screenY, type View } from "./camera";
+import { drawHud } from "./hud";
 import { drawScan, drawSector } from "./lidarDraw";
 import { drawRobot, drawTf, drawVelocity } from "./robotDraw";
 import type { ViewerState } from "./state";
@@ -87,7 +88,7 @@ function drawZoneState(
   context.font = "700 13px system-ui, sans-serif";
   context.textBaseline = "bottom";
   context.fillText(
-    status.delivered ? "ENTREGA CONFIRMADA" : "NA ZONA",
+    status.delivered ? "ENTREGUE ✓" : "NA ZONA",
     left + 8,
     top + height - 8
   );
@@ -154,4 +155,5 @@ export function drawDynamic(
       drawVelocity(context, view, state.pose);
     }
   }
+  drawHud(context, view);
 }

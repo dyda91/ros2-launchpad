@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   CourseGuide,
@@ -19,9 +19,11 @@ import {
   worldY
 } from "../viewer/camera";
 import { drawDynamic } from "../viewer/dynamicLayer";
+import { rangeGradient } from "../viewer/lidarDraw";
 import { renderStatic } from "../viewer/staticLayer";
 import {
   defaultLayers,
+  type Layers,
   type ScanFrame,
   type TrailPoint,
   type ViewerState
@@ -50,6 +52,23 @@ interface WarehouseViewerProps {
   guide: CourseGuide | null;
   onZoomChange: (zoom: number) => void;
   onFollowChange: (follow: boolean) => void;
+  onShowLidarChange: (visible: boolean) => void;
+}
+
+const PERSISTENCE_OPTIONS = [1, 3, 5, 10];
+
+const layerLabels: { key: keyof Layers; label: string; sub?: boolean }[] = [
+  { key: "grid", label: "Grade" },
+  { key: "tf", label: "TF" },
+  { key: "trail", label: "Rastro" },
+  { key: "velocity", label: "Velocidade" },
+  { key: "markings", label: "Marcações do piso" },
+  { key: "rays", label: "Raios do LiDAR", sub: true },
+  { key: "sector", label: "Setor frontal", sub: true }
+];
+
+function formatNumber(value: number, digits = 2) {
+  return value.toFixed(digits).replace(".", ",");
 }
 
 function buildFrame(scan: ScanData, fallback: Pose): ScanFrame {
@@ -106,6 +125,10 @@ export default function WarehouseViewer(props: WarehouseViewerProps) {
     onFollowChange: props.onFollowChange
   });
   const scheduleRef = useRef<() => void>(() => undefined);
+  const cursorRef = useRef<HTMLSpanElement>(null);
+  const [layers, setLayers] = useState<Layers>(defaultLayers);
+  const [persistence, setPersistence] = useState(3);
+  const [panelOpen, setPanelOpen] = useState(true);
 
   callbacksRef.current = {
     onZoomChange: props.onZoomChange,
@@ -187,8 +210,16 @@ export default function WarehouseViewer(props: WarehouseViewerProps) {
       const elapsed = performance.now() - started;
       frames += 1;
       average = frames === 1 ? elapsed : average * 0.95 + elapsed * 0.05;
+      if (cursorRef.current !== null) {
+        cursorRef.current.textContent =
+          state.cursor === null
+            ? "cursor: —"
+            : `cursor: (${formatNumber(state.cursor.x)}; ${formatNumber(state.cursor.y)}) m`;
+      }
       canvas!.dataset.frameMs = average.toFixed(2);
       canvas!.dataset.frames = String(frames);
+      canvas!.dataset.trailPoints = String(state.trail.length);
+      canvas!.dataset.scanFrames = String(state.frames.length);
     }
 
     function schedule() {
@@ -321,6 +352,12 @@ export default function WarehouseViewer(props: WarehouseViewerProps) {
   ]);
 
   useEffect(() => {
+    stateRef.current.layers = layers;
+    stateRef.current.persistence = persistence;
+    scheduleRef.current();
+  }, [layers, persistence]);
+
+  useEffect(() => {
     const state = stateRef.current;
     state.panX = 0;
     state.panY = 0;
@@ -378,15 +415,117 @@ export default function WarehouseViewer(props: WarehouseViewerProps) {
     scheduleRef.current();
   }, [props.scan]);
 
+  function keepTerminalFocus(event: React.MouseEvent<HTMLElement>) {
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest("button, input, label") !== null
+    ) {
+      event.preventDefault();
+    }
+  }
+
+  const pose = props.pose;
+  const yawDegrees = pose === null ? 0 : (pose.yaw * 180) / Math.PI;
+  const rangeMax = props.scan?.range_max ?? 8;
+
   return (
-    <canvas
-      ref={canvasRef}
-      className="warehouse-canvas"
-      aria-label="Visor do armazém visto de cima"
-      data-testid="warehouse-canvas"
-      data-guide-region={props.guide?.region?.label ?? ""}
-      data-guide-yaw={props.guide?.yawDeg ?? ""}
-      data-guide-sector={props.guide?.sectorDeg ?? ""}
-    />
+    <div className="viewer" data-testid="viewer">
+      <canvas
+        ref={canvasRef}
+        className="warehouse-canvas"
+        aria-label="Visor do armazém visto de cima"
+        data-testid="warehouse-canvas"
+        data-guide-region={props.guide?.region?.label ?? ""}
+        data-guide-yaw={props.guide?.yawDeg ?? ""}
+        data-guide-sector={props.guide?.sectorDeg ?? ""}
+      />
+      <div className="viewer-overlay" onMouseDown={keepTerminalFocus}>
+        <div className="displays-panel" data-testid="displays-panel">
+          <button
+            type="button"
+            className="displays-toggle"
+            onClick={() => setPanelOpen((open) => !open)}
+            aria-expanded={panelOpen}
+            data-testid="displays-toggle"
+          >
+            Displays {panelOpen ? "▾" : "▸"}
+          </button>
+          {panelOpen ? (
+            <div className="displays-body">
+              <label className="displays-row">
+                <input
+                  type="checkbox"
+                  checked={props.showLidar}
+                  onChange={(event) => props.onShowLidarChange(event.target.checked)}
+                  data-testid="layer-scan"
+                />
+                LaserScan
+              </label>
+              {layerLabels.map((item) => (
+                <label
+                  key={item.key}
+                  className={`displays-row ${item.sub ? "displays-sub" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={layers[item.key]}
+                    onChange={(event) =>
+                      setLayers((previous) => ({
+                        ...previous,
+                        [item.key]: event.target.checked
+                      }))
+                    }
+                    data-testid={`layer-${item.key}`}
+                  />
+                  {item.label}
+                </label>
+              ))}
+              <div className="displays-persistence">
+                <span>Decay (varreduras)</span>
+                <div className="persistence-options">
+                  {PERSISTENCE_OPTIONS.map((count) => (
+                    <button
+                      key={count}
+                      type="button"
+                      className={persistence === count ? "persistence-on" : ""}
+                      onClick={() => setPersistence(count)}
+                      data-testid={`persistence-${count}`}
+                    >
+                      {count}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="readout" data-testid="readout">
+          <span className="readout-frame">Fixed Frame: odom</span>
+          <span>
+            x <strong>{formatNumber(pose?.x ?? 0)} m</strong>
+          </span>
+          <span>
+            y <strong>{formatNumber(pose?.y ?? 0)} m</strong>
+          </span>
+          <span>
+            yaw <strong>{formatNumber(yawDegrees, 1)}°</strong>
+          </span>
+          <span>
+            v <strong>{formatNumber(pose?.vx ?? 0)} m/s</strong>
+          </span>
+          <span>
+            ω <strong>{formatNumber(pose?.wz ?? 0)} rad/s</strong>
+          </span>
+        </div>
+        <span className="cursor-readout" ref={cursorRef} data-testid="cursor-readout">
+          cursor: —
+        </span>
+        <div className="range-legend" data-testid="range-legend">
+          <span>0 m</span>
+          <i style={{ background: rangeGradient() }} />
+          <span>{formatNumber(rangeMax, 0)} m</span>
+        </div>
+      </div>
+    </div>
   );
 }
