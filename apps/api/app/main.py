@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .agent_client import AgentClient
-from .mission_content import load_mission
+from .mission_content import load_mission, mission_shape
 from .pilot import PilotStore
 from .runtime_client import RuntimeClient
 from .sessions import SessionManager
@@ -26,6 +26,7 @@ async def lifespan(app):
     app.state.manager = manager
     app.state.runtime = runtime
     app.state.mission = load_mission(settings.mission_file)
+    manager.configure_mission(mission_shape(app.state.mission))
     app.state.pilot = (
         PilotStore(
             settings.pilot_state_dir,
@@ -288,11 +289,19 @@ async def save_progress(request: Request):
         after = manager(request).state(cookie)
         steps = request.app.state.mission.get("steps", [])
         step_ids = [step.get("id", "") for step in steps]
+        tasks = [
+            [
+                {"id": task.get("id", ""), "kind": task.get("kind", "")}
+                for task in step.get("tasks", [])
+            ]
+            for step in steps
+        ]
         store.progress_events(
             before.get("session_tag"),
             before.get("progress"),
             after.get("progress"),
             step_ids,
+            tasks,
         )
     return Response(status_code=204)
 

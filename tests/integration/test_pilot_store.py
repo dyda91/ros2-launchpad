@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import sys
@@ -75,6 +76,52 @@ class PilotStoreTest(unittest.TestCase):
         self.assertIn("solution_shown", lines)
         self.assertNotIn("terminal", lines.lower())
         self.assertNotIn(code, lines)
+
+    def test_v3_task_events(self):
+        code, _ = self.store.create_invite("guest-5")
+        token, _ = self.store.redeem(code)
+        self.store.consume(token, "session-5")
+        tasks = [
+            [{"id": "nos-list", "kind": "command"}, {"id": "nos-monitor", "kind": "answer"}],
+            [{"id": "movimento-watchdog", "kind": "quiz"}],
+        ]
+        steps = ["nos", "movimento"]
+        base = {"version": 3, "stepIndex": 0, "taskIndex": 0, "taskDone": False,
+                "answerWrong": False, "hintsShown": 0, "solutionVisible": False}
+        sequence = [
+            {},
+            base,
+            {**base, "taskDone": True},
+            {**base, "taskIndex": 1},
+            {**base, "taskIndex": 1, "answerWrong": True, "hintsShown": 1},
+            {**base, "taskIndex": 1, "answerWrong": True, "hintsShown": 1},
+            {**base, "taskIndex": 1, "taskDone": True, "hintsShown": 1},
+            {**base, "stepIndex": 1, "taskIndex": 0},
+            {**base, "stepIndex": 1, "taskIndex": 0, "taskDone": True},
+        ]
+        for old, new in zip(sequence, sequence[1:]):
+            self.store.progress_events("tag-5", old, new, steps, tasks)
+        events = [
+            json.loads(line)
+            for line in Path(self.store.events_path).read_text(encoding="utf-8").splitlines()
+            if json.loads(line).get("session_tag") == "tag-5"
+        ]
+        names = [event["event"] for event in events]
+        self.assertEqual(names.count("task_entered"), 3)
+        self.assertEqual(names.count("task_done"), 3)
+        self.assertEqual(names.count("answer_wrong"), 1)
+        self.assertEqual(names.count("hint_shown"), 1)
+        self.assertEqual(names.count("quiz_correct"), 1)
+        self.assertEqual(names.count("step_entered"), 2)
+        done = [event for event in events if event["event"] == "task_done"]
+        self.assertEqual([event["task"] for event in done],
+                         ["nos-list", "nos-monitor", "movimento-watchdog"])
+        for event in events:
+            self.assertNotIn("command", event)
+            self.assertNotIn("answer", event)
+            self.assertLessEqual(set(event), {"ts", "event", "session_tag", "step",
+                                              "step_index", "task", "task_index",
+                                              "kind", "hints"})
 
     def test_rate_limit(self):
         key = "ip:127.0.0.1"

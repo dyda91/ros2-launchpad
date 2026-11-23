@@ -321,6 +321,8 @@ test-api: build-app
 
 test-session-capacity: build-app
 	docker run --rm \
+		-v "$(CURDIR)/content:/content:ro" \
+		-e MISSION_FILE=/content/missions/primeiro-turno.yaml \
 		-v "$(CURDIR)/tests:/tests:ro" \
 		-v "$(CURDIR)/apps/api:/app" \
 		-w /app ros2-launchpad-api:dev \

@@ -1,4 +1,5 @@
 import asyncio
+import os
 from pathlib import Path
 import sys
 import time
@@ -9,7 +10,13 @@ sys.path.insert(0, "/app")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "api"))
 
 from app.runtime_client import RuntimeFull
+from app.mission_content import load_mission, mission_shape
 from app.sessions import Session, SessionManager
+
+MISSION_FILE = os.environ.get(
+    "MISSION_FILE",
+    str(Path(__file__).resolve().parents[2] / "content" / "missions" / "primeiro-turno.yaml"),
+)
 
 
 class FakeRuntime:
@@ -142,6 +149,54 @@ class SessionCapacityTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(
             await self.manager.save_progress(second_id, {"stepIndex": -1})
+        )
+
+    async def test_v3_progress_is_bounded_by_the_mission(self):
+        shape = mission_shape(load_mission(MISSION_FILE))
+        self.manager.configure_mission(shape)
+        _, _, session_id = await self.create()
+        last_step = len(shape) - 1
+        progress = {
+            "version": 3,
+            "stepIndex": last_step,
+            "taskIndex": shape[last_step] - 1,
+            "taskDone": False,
+            "selected": None,
+            "answerWrong": False,
+            "hintsShown": 2,
+            "solutionVisible": False,
+            "taskStart": {"x": 0.5, "y": 2.0, "yaw": 1.57},
+        }
+        self.assertTrue(await self.manager.save_progress(session_id, progress))
+        saved = self.manager.state(session_id)["progress"]
+        self.assertEqual(saved["taskIndex"], shape[last_step] - 1)
+        for change in (
+            {"stepIndex": len(shape)},
+            {"taskIndex": shape[last_step]},
+            {"taskIndex": -1},
+            {"taskIndex": True},
+            {"version": 4},
+            {"taskDone": "sim"},
+            {"answerWrong": 1},
+            {"taskStart": {"x": 0.0, "y": "a", "yaw": 0.0}},
+            {"hintsShown": -1},
+        ):
+            self.assertFalse(
+                await self.manager.save_progress(session_id, {**progress, **change}),
+                change,
+            )
+        self.assertFalse(
+            await self.manager.save_progress(session_id, {"stepIndex": 1, "taskIndex": 0})
+        )
+        legacy = {
+            "stepIndex": 2,
+            "quizDone": True,
+            "hintsShown": 1,
+            "motionStart": None,
+        }
+        self.assertTrue(await self.manager.save_progress(session_id, legacy))
+        self.assertFalse(
+            await self.manager.save_progress(session_id, {"stepIndex": 99})
         )
 
     async def test_idle_expiration_releases_slot(self):
