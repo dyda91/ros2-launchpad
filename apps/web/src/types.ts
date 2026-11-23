@@ -186,6 +186,13 @@ export interface TerminalState {
   running: boolean;
 }
 
+export interface TerminalCommand {
+  seq: number;
+  command: string;
+  exit: number;
+  receivedAt: number;
+}
+
 export interface InsertResult {
   ok: boolean;
   reason: string;

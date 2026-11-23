@@ -1,18 +1,64 @@
 import asyncio
+import base64
+import binascii
 import fcntl
 import json
 import os
 import pty
+import re
 import signal
 import struct
 import termios
 
 PROMPT_MARKER = b"\x1b]1337;LaunchpadPrompt\x07"
+MARKER_PREFIX = b"\x1b]1337;Launchpad"
+MARKER_PATTERN = re.compile(
+    rb"\x1b\]1337;(?:LaunchpadPrompt|LaunchpadCommand=([A-Za-z0-9+/=]*);(-?\d{1,4}))\x07"
+)
+MAX_PENDING = 2048
+MAX_COMMAND_CHARS = 512
+
+
+def _decode_command(encoded):
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        return None
+    return raw.decode("utf-8", "replace")[:MAX_COMMAND_CHARS]
+
+
+def _partial_tail(data):
+    index = data.rfind(b"\x1b")
+    if index < 0:
+        return b""
+    tail = data[index:]
+    if len(tail) > MAX_PENDING or b"\x07" in tail:
+        return b""
+    size = min(len(tail), len(MARKER_PREFIX))
+    if tail[:size] != MARKER_PREFIX[:size]:
+        return b""
+    return tail
+
+
+def scan_markers(data):
+    events = []
+    end = 0
+    for match in MARKER_PATTERN.finditer(data):
+        end = match.end()
+        if match.group(0) == PROMPT_MARKER:
+            events.append(("prompt", None, None))
+            continue
+        command = _decode_command(match.group(1))
+        if command is None:
+            continue
+        events.append(("command", command, int(match.group(2))))
+    return events, _partial_tail(data[end:])
 
 
 class PtySession:
-    def __init__(self, env):
+    def __init__(self, env, rcfile="/etc/launchpad.bashrc"):
         self.env = env
+        self.rcfile = rcfile
         self.loop = None
         self.fd = None
         self.pid = None
@@ -25,6 +71,7 @@ class PtySession:
         self.line_empty = True
         self.running = False
         self._last_state = None
+        self.command_seq = 0
 
     def ensure(self, loop, cols=80, rows=24):
         if self.fd is not None:
@@ -39,7 +86,7 @@ class PtySession:
                         "bash",
                         "-lc",
                         "exec bash --noprofile "
-                        "--rcfile /etc/launchpad.bashrc -i",
+                        f"--rcfile {self.rcfile} -i",
                     ],
                     self.env,
                 )
@@ -79,13 +126,31 @@ class PtySession:
 
     def _scan_for_prompt(self, data):
         self._scan_buffer.extend(data)
-        if len(self._scan_buffer) > 4096:
-            del self._scan_buffer[:-4096]
-        index = self._scan_buffer.find(PROMPT_MARKER)
-        if index < 0:
+        events, rest = scan_markers(bytes(self._scan_buffer))
+        self._scan_buffer = bytearray(rest)
+        for kind, command, code in events:
+            if kind == "prompt":
+                self._set_state(True, True, False)
+            else:
+                self._emit_command(command, code)
+
+    def _emit_command(self, command, code):
+        self.command_seq += 1
+        payload = json.dumps(
+            {
+                "type": "command",
+                "seq": self.command_seq,
+                "command": command,
+                "exit": code,
+            }
+        )
+        if self.loop is None:
             return
-        del self._scan_buffer[: index + len(PROMPT_MARKER)]
-        self._set_state(True, True, False)
+        for client in list(self.clients):
+            if client.closed:
+                self.clients.discard(client)
+                continue
+            self.loop.create_task(client.send_str(payload))
 
     def terminal_state(self):
         return {

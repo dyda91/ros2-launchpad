@@ -18,7 +18,7 @@ SESSION_WARNING_SECONDS ?= 120
 SESSION_MONITOR_SECONDS ?= 2
 SESSION_ROS_DOMAIN_ID ?= 42
 
-.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 e2e-4a stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
+.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-terminal test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 e2e-4a stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
 
 help:
 	@printf '%s\n' \
@@ -29,6 +29,7 @@ help:
 		'lab-logs    acompanha logs do container' \
 		'world       gera o SDF e o mapa a partir de content/world/armazem.yaml' \
 		'test-world  executa testes de geometria do mundo' \
+		'test-terminal testa a detecção de comandos do terminal' \
 		'stage1      executa o aceite completo da Etapa 1' \
 		'up          constrói e sobe API + runtime em 127.0.0.1:8080' \
 		'down        para aplicação e remove a sessão' \
@@ -78,7 +79,11 @@ test-world: lab-up
 	$(COMPOSE) exec -T $(LAB) bash -lc \
 		'LAUNCHPAD_ROOT=/ python3 /tests/integration/test_world_geometry.py -v'
 
-stage1: lab-up test-world
+test-terminal: lab-up
+	$(COMPOSE) exec -T $(LAB) bash -lc \
+		'python3 /tests/integration/test_command_markers.py -v'
+
+stage1: lab-up test-world test-terminal
 	bash tests/integration/stage1_acceptance.sh
 
 up: build build-app

@@ -25,6 +25,7 @@ import type {
   Pose,
   ScanData,
   SessionStatus,
+  TerminalCommand,
   TerminalState
 } from "./types";
 
@@ -87,6 +88,7 @@ export default function App() {
   const [zoom, setZoom] = useState(1);
   const [terminalState, setTerminalState] = useState<TerminalState | null>(null);
   const [insertNotice, setInsertNotice] = useState("");
+  const [lastCommand, setLastCommand] = useState<TerminalCommand | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -333,6 +335,10 @@ export default function App() {
     setTerminalState(state);
   }
 
+  function handleCommand(command: TerminalCommand) {
+    setLastCommand(command);
+  }
+
   function handleInsertResult(result: InsertResult) {
     setInsertNotice(
       result.ok
@@ -379,6 +385,7 @@ export default function App() {
     setNotice("");
     setMissionStatus(null);
     setTerminalState(null);
+    setLastCommand(null);
     setInsertNotice("");
     setScan(null);
     try {
@@ -414,6 +421,7 @@ export default function App() {
     setScan(null);
     setMissionStatus(null);
     setTerminalState(null);
+    setLastCommand(null);
     setInsertNotice("");
     try {
       const status = await restartSession();
@@ -452,6 +460,7 @@ export default function App() {
     setScan(null);
     setMissionStatus(null);
     setTerminalState(null);
+    setLastCommand(null);
     setInsertNotice("");
     try {
       await endSession();
@@ -847,12 +856,15 @@ export default function App() {
               data-prompt={terminalState?.prompt ?? false}
               data-line-empty={terminalState?.lineEmpty ?? false}
               data-running={terminalState?.running ?? false}
+              data-last-command-seq={lastCommand?.seq ?? 0}
+              data-last-command-exit={lastCommand?.exit ?? ""}
             >
               <Terminal
                 ref={terminalRef}
                 wsPath="/ws/terminal"
                 onTerminalState={handleTerminalState}
                 onInsertResult={handleInsertResult}
+                onCommand={handleCommand}
               />
             </div>
           </section>
