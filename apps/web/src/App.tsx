@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import MissionPanel from "./components/MissionPanel";
-import RobotView from "./components/RobotView";
 import PilotGate from "./components/PilotGate";
 import Terminal, { type TerminalHandle } from "./components/Terminal";
-import WarehouseCanvas from "./components/WarehouseCanvas";
+import WarehouseViewer from "./components/WarehouseViewer";
 import {
   endSession,
   getMap,
@@ -87,6 +86,9 @@ export default function App() {
   const [scan, setScan] = useState<ScanData | null>(null);
   const [showLidar, setShowLidar] = useState(true);
   const [zoom, setZoom] = useState(1);
+  const [follow, setFollow] = useState(false);
+  const [resetToken, setResetToken] = useState(0);
+  const [clearTrailToken, setClearTrailToken] = useState(0);
   const [terminalState, setTerminalState] = useState<TerminalState | null>(null);
   const [insertNotice, setInsertNotice] = useState("");
   const [lastCommand, setLastCommand] = useState<TerminalCommand | null>(null);
@@ -721,13 +723,13 @@ export default function App() {
           <section className="panel viewport-panel">
             <div className="panel-header">
               <div>
-                <p className="eyebrow">Visor 2D</p>
+                <p className="eyebrow">Visor de cima</p>
                 <h2>Armazém</h2>
               </div>
               <div className="viewport-actions">
                 <button
                   className="button button-secondary button-small"
-                  onClick={() => setZoom((value) => Math.max(1, value - 0.25))}
+                  onClick={() => setZoom((value) => Math.max(1, Math.round((value - 0.25) * 100) / 100))}
                   data-testid="zoom-out"
                   aria-label="Diminuir zoom"
                 >
@@ -738,7 +740,7 @@ export default function App() {
                 </span>
                 <button
                   className="button button-secondary button-small"
-                  onClick={() => setZoom((value) => Math.min(3, value + 0.25))}
+                  onClick={() => setZoom((value) => Math.min(6, Math.round((value + 0.25) * 100) / 100))}
                   data-testid="zoom-in"
                   aria-label="Aumentar zoom"
                 >
@@ -746,10 +748,29 @@ export default function App() {
                 </button>
                 <button
                   className="button button-secondary button-small"
-                  onClick={() => setZoom(1)}
+                  onClick={() => {
+                    setZoom(1);
+                    setFollow(false);
+                    setResetToken((value) => value + 1);
+                  }}
                   data-testid="recenter"
                 >
                   Centralizar
+                </button>
+                <button
+                  className={`button button-small ${follow ? "button-secondary" : "button-ghost"}`}
+                  onClick={() => setFollow((value) => !value)}
+                  data-testid="follow-robot"
+                  data-enabled={follow}
+                >
+                  Seguir robô
+                </button>
+                <button
+                  className="button button-ghost button-small"
+                  onClick={() => setClearTrailToken((value) => value + 1)}
+                  data-testid="clear-trail"
+                >
+                  Limpar rastro
                 </button>
                 <button
                   className={`button button-small ${showLidar ? "button-secondary" : "button-ghost"}`}
@@ -779,23 +800,20 @@ export default function App() {
                   data-scan-pose-stamp={scan?.pose?.stamp ?? 0}
                   data-zoom={zoom}
                 >
-                  <div className="viewport-split">
-                    <div className="viewport-pane">
-                      <span className="pane-label">Planta 2D</span>
-                      <WarehouseCanvas
-                        map={map}
-                        pose={pose}
-                        scan={scan}
-                        showLidar={showLidar}
-                        zoom={zoom}
-                        guide={guide}
-                      />
-                    </div>
-                    <div className="viewport-pane robot-pane">
-                      <span className="pane-label">Visão do robô</span>
-                      <RobotView map={map} pose={pose} />
-                    </div>
-                  </div>
+                  <WarehouseViewer
+                    map={map}
+                    pose={pose}
+                    scan={scan}
+                    showLidar={showLidar}
+                    zoom={zoom}
+                    follow={follow}
+                    resetToken={resetToken}
+                    clearTrailToken={clearTrailToken}
+                    missionStatus={missionStatus}
+                    guide={guide}
+                    onZoomChange={setZoom}
+                    onFollowChange={setFollow}
+                  />
                 </div>
               ) : (
                 <div className="viewport-loading">Carregando o mapa...</div>
