@@ -33,18 +33,22 @@ export interface SessionStatus {
   lifecycle?: SessionLifecycle;
 }
 
+export interface PoseSnapshot {
+  x: number;
+  y: number;
+  yaw: number;
+}
+
 export interface MissionProgress {
+  version: 3;
   stepIndex: number;
+  taskIndex: number;
+  taskDone: boolean;
   selected: number | null;
-  quizDone: boolean;
-  quizWrong: boolean;
-  predictionSelected: number | null;
-  predictionDone: boolean;
-  predictionWrong: boolean;
+  answerWrong: boolean;
   hintsShown: number;
   solutionVisible: boolean;
-  motionStart: { x: number; y: number; yaw: number } | null;
-  motionDone: boolean;
+  taskStart: PoseSnapshot | null;
 }
 
 export interface ScanData {
@@ -129,32 +133,63 @@ export interface MissionQuestion {
   answerIndex: number;
 }
 
+export interface CourseRegion {
+  label: string;
+  min: [number, number];
+  max: [number, number];
+}
+
+export type TaskKind =
+  | "command"
+  | "answer"
+  | "quiz"
+  | "pose"
+  | "scan"
+  | "delivery";
+
+export interface MissionTask {
+  id: string;
+  kind: TaskKind;
+  title: string;
+  prompt: string;
+  insertCommand?: string;
+  observe?: string;
+  hints: string[];
+  solution?: string[];
+  feedback: string;
+  match?: string[];
+  requireSuccess?: boolean;
+  accept?: string[];
+  numeric?: { value: number; tolerance: number };
+  placeholder?: string;
+  question?: MissionQuestion;
+  direction?: "forward" | "backward";
+  minDistanceM?: number;
+  region?: CourseRegion;
+  yawDeg?: number;
+  yawToleranceDeg?: number;
+  minRotationDeg?: number;
+  sectorDeg?: number;
+  minM?: number;
+  maxM?: number;
+  strategy?: string[];
+  solutionNote?: string;
+}
+
+export interface LearnedCommand {
+  command: string;
+  meaning: string;
+}
+
 export interface MissionStep {
   id: string;
-  kind: "quiz" | "motion" | "delivery";
   title: string;
+  goal: string;
   concept: string;
-  why?: string;
-  action: string;
-  exercise?: string;
-  example?: string[];
-  observe?: string;
-  insertCommand?: string;
-  hints: string[];
-  feedback?: string;
-  question?: MissionQuestion;
-  prediction?: MissionQuestion;
-  command?: string;
-  minDisplacementM?: number;
-  stopSpeedMps?: number;
-  solution?: string[];
-  solutionStart?: {
-    x: number;
-    y: number;
-    yaw: number;
-    tolerance: number;
-  };
-  hintsNote?: string;
+  why: string;
+  example: string[];
+  learned: LearnedCommand[];
+  tasks: MissionTask[];
 }
 
 export interface MissionContent {
@@ -168,6 +203,12 @@ export interface MissionContent {
     body: string;
     hook: string;
   };
+}
+
+export interface CourseGuide {
+  region?: CourseRegion;
+  yawDeg?: number;
+  sectorDeg?: number;
 }
 
 export interface MissionStatus {

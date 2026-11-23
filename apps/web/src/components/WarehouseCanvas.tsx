@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import type { MapData, Pose, ScanData } from "../types";
+import type { CourseGuide, MapData, Pose, ScanData } from "../types";
 
 function drawScene(
   canvas: HTMLCanvasElement,
@@ -8,7 +8,8 @@ function drawScene(
   pose: Pose | null,
   scan: ScanData | null,
   showLidar: boolean,
-  zoom: number
+  zoom: number,
+  guide: CourseGuide | null
 ) {
   const context = canvas.getContext("2d");
   if (context === null) {
@@ -149,6 +150,67 @@ function drawScene(
   context.font = "12px system-ui, sans-serif";
   context.fillText(zone.id, screenX(zone.bounds.min[0]) + 6, screenY(zone.bounds.max[1]) + 18);
 
+  if (guide?.region) {
+    const region = guide.region;
+    context.save();
+    context.setLineDash([6, 4]);
+    context.strokeStyle = "#facc15";
+    context.fillStyle = "rgba(250, 204, 21, 0.12)";
+    context.lineWidth = 2;
+    const left = screenX(region.min[0]);
+    const top = screenY(region.max[1]);
+    const regionWidth = screenWidth(region.max[0] - region.min[0]);
+    const regionHeight = screenHeight(region.max[1] - region.min[1]);
+    context.fillRect(left, top, regionWidth, regionHeight);
+    context.strokeRect(left, top, regionWidth, regionHeight);
+    context.setLineDash([]);
+    context.fillStyle = "#fde68a";
+    context.font = "12px system-ui, sans-serif";
+    context.fillText(region.label, left + 4, top - 6);
+    context.restore();
+  }
+
+  if (guide?.yawDeg !== undefined && pose !== null) {
+    const target = (guide.yawDeg * Math.PI) / 180;
+    const length = 1.2;
+    context.save();
+    context.setLineDash([8, 6]);
+    context.strokeStyle = "#facc15";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(screenX(pose.x), screenY(pose.y));
+    context.lineTo(
+      screenX(pose.x + length * Math.cos(target)),
+      screenY(pose.y + length * Math.sin(target))
+    );
+    context.stroke();
+    context.restore();
+  }
+
+  if (guide?.sectorDeg !== undefined && pose !== null) {
+    const sector = (guide.sectorDeg * Math.PI) / 180;
+    const length = 2.0;
+    const scanPose = scan?.pose ?? pose;
+    context.save();
+    context.fillStyle = "rgba(250, 204, 21, 0.18)";
+    context.strokeStyle = "rgba(250, 204, 21, 0.8)";
+    context.lineWidth = 1.5;
+    context.beginPath();
+    context.moveTo(screenX(scanPose.x), screenY(scanPose.y));
+    const steps = 12;
+    for (let index = 0; index <= steps; index += 1) {
+      const angle = scanPose.yaw - sector + (2 * sector * index) / steps;
+      context.lineTo(
+        screenX(scanPose.x + length * Math.cos(angle)),
+        screenY(scanPose.y + length * Math.sin(angle))
+      );
+    }
+    context.closePath();
+    context.fill();
+    context.stroke();
+    context.restore();
+  }
+
   if (showLidar && scan !== null && pose !== null) {
     const scanPose = scan.pose ?? pose;
     context.fillStyle = "rgba(96, 165, 250, 0.9)";
@@ -260,13 +322,15 @@ export default function WarehouseCanvas({
   pose,
   scan,
   showLidar,
-  zoom
+  zoom,
+  guide = null
 }: {
   map: MapData;
   pose: Pose | null;
   scan: ScanData | null;
   showLidar: boolean;
   zoom: number;
+  guide?: CourseGuide | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -275,18 +339,23 @@ export default function WarehouseCanvas({
     if (canvas === null) {
       return;
     }
-    const render = () => drawScene(canvas, map, pose, scan, showLidar, zoom);
+    const render = () =>
+      drawScene(canvas, map, pose, scan, showLidar, zoom, guide);
     render();
     const observer = new ResizeObserver(render);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [map, pose, scan, showLidar, zoom]);
+  }, [map, pose, scan, showLidar, zoom, guide]);
 
   return (
     <canvas
       ref={canvasRef}
       className="warehouse-canvas"
       aria-label="Visor 2D do armazém"
+      data-testid="warehouse-canvas"
+      data-guide-region={guide?.region?.label ?? ""}
+      data-guide-yaw={guide?.yawDeg ?? ""}
+      data-guide-sector={guide?.sectorDeg ?? ""}
     />
   );
 }

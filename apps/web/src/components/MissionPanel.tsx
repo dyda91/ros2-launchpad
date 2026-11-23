@@ -1,31 +1,57 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  HOLD_MS,
+  checkAnswer,
+  completedTasks,
+  freshProgress,
+  guideFor,
+  judgeCommand,
+  kindLabels,
+  learnedUpTo,
+  needsStart,
+  nextPosition,
+  poseCriteria,
+  restoreProgress,
+  scanCriteria,
+  isStopped,
+  snapshot,
+  totalTasks,
+  type CommandVerdict,
+  type Criterion
+} from "../course";
 import type {
+  CourseGuide,
   MissionContent,
   MissionProgress,
-  MissionQuestion,
   MissionStatus,
-  MissionStep,
   Pose,
+  ScanData,
+  TerminalCommand,
   TerminalState
 } from "../types";
 
 interface MissionPanelProps {
   mission: MissionContent;
   pose: Pose | null;
+  scan: ScanData | null;
   missionStatus: MissionStatus | null;
   terminalState: TerminalState | null;
+  lastCommand: TerminalCommand | null;
   insertNotice: string;
   busy: boolean;
   restarting: boolean;
-  initialProgress?: MissionProgress;
+  initialProgress?: unknown;
   onInsert: (command: string) => void;
   onRestart: () => void;
   onProgressChange: (progress: MissionProgress) => void;
+  onGuideChange?: (guide: CourseGuide | null) => void;
 }
 
-function angleDelta(a: number, b: number) {
-  return Math.atan2(Math.sin(a - b), Math.cos(a - b));
+interface CommandFeedback {
+  verdict: CommandVerdict;
+  command: string;
+  exit: number;
 }
 
 async function copyText(text: string) {
@@ -43,49 +69,6 @@ async function copyText(text: string) {
     document.body.removeChild(area);
     return copied;
   }
-}
-
-function Question({
-  question,
-  selected,
-  done,
-  wrong,
-  onSelect,
-  testId
-}: {
-  question: MissionQuestion;
-  selected: number | null;
-  done: boolean;
-  wrong: boolean;
-  onSelect: (index: number) => void;
-  testId: string;
-}) {
-  return (
-    <div className="mission-question">
-      <p>{question.prompt}</p>
-      <div className="option-list">
-        {question.options.map((option, index) => (
-          <button
-            key={option}
-            className={[
-              "option-button",
-              selected === index ? "option-selected" : "",
-              done && index === question.answerIndex ? "option-correct" : "",
-              wrong && selected === index ? "option-wrong" : ""
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            onClick={() => onSelect(index)}
-            disabled={done}
-            data-testid={testId}
-            data-index={index}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function CommandPreview({
@@ -158,45 +141,26 @@ function CommandPreview({
   );
 }
 
-function Hints({
-  step,
-  hintsShown,
-  setHintsShown
-}: {
-  step: MissionStep;
-  hintsShown: number;
-  setHintsShown: (value: number) => void;
-}) {
+function CriteriaList({ criteria }: { criteria: Criterion[] }) {
   return (
-    <div className="hints">
-      {step.hints.slice(0, hintsShown).map((hint, index) => (
-        <p className="hint" key={hint}>
-          <strong>Dica {index + 1}:</strong> {hint}
-        </p>
+    <ul className="criteria-list" data-testid="task-criteria">
+      {criteria.map((criterion) => (
+        <li
+          key={criterion.id}
+          className={criterion.ok ? "criterion-ok" : "criterion-pending"}
+          data-criterion={criterion.id}
+          data-ok={criterion.ok}
+        >
+          <span className="criterion-mark">{criterion.ok ? "✓" : "✗"}</span>
+          <span className="criterion-label">{criterion.label}</span>
+          <span className="criterion-detail">{criterion.detail}</span>
+        </li>
       ))}
-      <button
-        className="button button-ghost button-small"
-        onClick={() => setHintsShown(Math.min(hintsShown + 1, step.hints.length))}
-        disabled={hintsShown >= step.hints.length}
-        data-testid="hint-button"
-      >
-        {hintsShown === 0
-          ? "Mostrar dica"
-          : hintsShown >= step.hints.length
-            ? "Dicas esgotadas"
-            : "Mais uma dica"}
-      </button>
-    </div>
+    </ul>
   );
 }
 
-function DeliveryStatus({
-  status,
-  step
-}: {
-  status: MissionStatus | null;
-  step: MissionStep;
-}) {
+function DeliveryStatus({ status }: { status: MissionStatus | null }) {
   let text = "Aguardando a telemetria da missão...";
   if (status !== null) {
     if (status.delivered) {
@@ -220,7 +184,6 @@ function DeliveryStatus({
       data-delivered={status?.delivered ?? false}
       data-speed={status?.speedMps ?? 0}
       data-stopped-for={status?.stoppedForS ?? 0}
-      data-zone={step.id}
     >
       <strong>Entrega:</strong> {text}
       {status ? (
@@ -264,181 +227,186 @@ function Success({
   );
 }
 
+function feedbackText(feedback: CommandFeedback) {
+  if (feedback.verdict === "match") {
+    return `Você executou ${feedback.command} — é isso.`;
+  }
+  if (feedback.verdict === "error") {
+    return `Você executou ${feedback.command}: comando certo, mas terminou com erro ${feedback.exit}. Confira a saída e tente de novo.`;
+  }
+  return `Você executou ${feedback.command} — ainda não é o pedido.`;
+}
+
 export default function MissionPanel({
   mission,
   pose,
+  scan,
   missionStatus,
   terminalState,
+  lastCommand,
   insertNotice,
   busy,
   restarting,
   initialProgress,
   onInsert,
   onRestart,
-  onProgressChange
+  onProgressChange,
+  onGuideChange
 }: MissionPanelProps) {
-  const [stepIndex, setStepIndex] = useState(() =>
-    Math.min(initialProgress?.stepIndex ?? 0, mission.steps.length - 1)
+  const [progress, setProgress] = useState<MissionProgress>(() =>
+    restoreProgress(mission, initialProgress)
   );
-  const [selected, setSelected] = useState<number | null>(
-    initialProgress?.selected ?? null
-  );
-  const [quizDone, setQuizDone] = useState(
-    initialProgress?.quizDone ?? false
-  );
-  const [quizWrong, setQuizWrong] = useState(
-    initialProgress?.quizWrong ?? false
-  );
-  const [predictionSelected, setPredictionSelected] = useState<number | null>(
-    initialProgress?.predictionSelected ?? null
-  );
-  const [predictionDone, setPredictionDone] = useState(
-    initialProgress?.predictionDone ?? false
-  );
-  const [predictionWrong, setPredictionWrong] = useState(
-    initialProgress?.predictionWrong ?? false
-  );
-  const [hintsShown, setHintsShown] = useState(
-    initialProgress?.hintsShown ?? 0
-  );
-  const [solutionVisible, setSolutionVisible] = useState(
-    initialProgress?.solutionVisible ?? false
-  );
-  const [motionStart, setMotionStart] = useState<{
-    x: number;
-    y: number;
-    yaw: number;
-  } | null>(initialProgress?.motionStart ?? null);
-  const [motionDone, setMotionDone] = useState(
-    initialProgress?.motionDone ?? false
-  );
+  const [answer, setAnswer] = useState("");
+  const [feedback, setFeedback] = useState<CommandFeedback | null>(null);
+  const [conceptOpen, setConceptOpen] = useState(progress.taskIndex === 0);
   const progressCallback = useRef(onProgressChange);
+  const guideCallback = useRef(onGuideChange);
+  const enteredAt = useRef(Date.now());
+  const handledSeq = useRef(lastCommand?.seq ?? 0);
+  const metSince = useRef<number | null>(null);
+  const poseRef = useRef(pose);
+  const scanRef = useRef(scan);
 
-  const step = mission.steps[stepIndex];
-  const isLast = stepIndex === mission.steps.length - 1;
+  const step = mission.steps[progress.stepIndex];
+  const task = step.tasks[progress.taskIndex];
+  const next = nextPosition(mission, progress.stepIndex, progress.taskIndex);
+  const isLastTask = next === null;
   const delivered = Boolean(missionStatus?.delivered);
+  const total = totalTasks(mission);
+  const done = completedTasks(mission, progress);
+  const live = task.kind === "pose" || task.kind === "scan";
+
+  poseRef.current = pose;
+  scanRef.current = scan;
 
   useEffect(() => {
     progressCallback.current = onProgressChange;
-  }, [onProgressChange]);
-
-  const progress = useMemo<MissionProgress>(
-    () => ({
-      stepIndex,
-      selected,
-      quizDone,
-      quizWrong,
-      predictionSelected,
-      predictionDone,
-      predictionWrong,
-      hintsShown,
-      solutionVisible,
-      motionStart,
-      motionDone
-    }),
-    [
-      stepIndex,
-      selected,
-      quizDone,
-      quizWrong,
-      predictionSelected,
-      predictionDone,
-      predictionWrong,
-      hintsShown,
-      solutionVisible,
-      motionStart,
-      motionDone
-    ]
-  );
+    guideCallback.current = onGuideChange;
+  }, [onProgressChange, onGuideChange]);
 
   useEffect(() => {
     progressCallback.current(progress);
   }, [progress]);
 
-  useEffect(() => {
-    if (
-      step.kind !== "motion" ||
-      !predictionDone ||
-      motionStart !== null ||
-      pose === null
-    ) {
-      return;
-    }
-    if (!terminalState?.prompt || !terminalState.lineEmpty) {
-      return;
-    }
-    setMotionStart({ x: pose.x, y: pose.y, yaw: pose.yaw });
-  }, [step.kind, predictionDone, motionStart, terminalState, pose]);
+  const guide = useMemo(() => guideFor(progress.taskDone ? null : task), [task, progress.taskDone]);
 
   useEffect(() => {
-    if (
-      step.kind !== "motion" ||
-      motionStart === null ||
-      pose === null ||
-      motionDone
-    ) {
+    guideCallback.current?.(guide);
+  }, [guide]);
+
+  useEffect(() => () => guideCallback.current?.(null), []);
+
+  function update(changes: Partial<MissionProgress>) {
+    setProgress((previous) => ({ ...previous, ...changes }));
+  }
+
+  useEffect(() => {
+    if (lastCommand === null || lastCommand.seq === handledSeq.current) {
       return;
     }
-    const distance = Math.hypot(pose.x - motionStart.x, pose.y - motionStart.y);
-    const speed = Math.abs(pose.vx);
-    const minDistance = step.minDisplacementM ?? 0.15;
-    const stopSpeed = step.stopSpeedMps ?? 0.02;
-    if (distance >= minDistance && speed <= stopSpeed) {
-      setMotionDone(true);
+    handledSeq.current = lastCommand.seq;
+    if (lastCommand.receivedAt < enteredAt.current || progress.taskDone) {
+      return;
     }
-  }, [step, motionStart, pose, motionDone]);
+    if (task.kind !== "command") {
+      return;
+    }
+    const verdict = judgeCommand(task, lastCommand);
+    setFeedback({ verdict, command: lastCommand.command, exit: lastCommand.exit });
+    if (verdict === "match") {
+      update({ taskDone: true });
+    }
+  }, [lastCommand, task, progress.taskDone]);
 
-  const solutionAtStart = useMemo(() => {
-    if (!pose || !step.solutionStart) {
-      return false;
+  useEffect(() => {
+    if (!needsStart(task) || progress.taskStart !== null || progress.taskDone) {
+      return;
     }
-    const start = step.solutionStart;
-    const distance = Math.hypot(pose.x - start.x, pose.y - start.y);
-    const yawDiff = Math.abs(angleDelta(pose.yaw, start.yaw));
-    return distance <= start.tolerance && yawDiff <= 0.35;
-  }, [pose, step.solutionStart]);
+    if (pose === null || !isStopped(pose)) {
+      return;
+    }
+    update({ taskStart: snapshot(pose) });
+  }, [task, pose, progress.taskStart, progress.taskDone]);
+
+  const criteria = useMemo<Criterion[]>(() => {
+    if (task.kind === "pose") {
+      return poseCriteria(task, pose, progress.taskStart);
+    }
+    if (task.kind === "scan") {
+      return scanCriteria(task, scan, pose);
+    }
+    return [];
+  }, [task, pose, scan, progress.taskStart]);
+
+  useEffect(() => {
+    metSince.current = null;
+    if (!live || progress.taskDone) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      const current =
+        task.kind === "pose"
+          ? poseCriteria(task, poseRef.current, progress.taskStart)
+          : scanCriteria(task, scanRef.current, poseRef.current);
+      const allOk = current.every((criterion) => criterion.ok);
+      if (!allOk) {
+        metSince.current = null;
+        return;
+      }
+      const now = Date.now();
+      if (metSince.current === null) {
+        metSince.current = now;
+        return;
+      }
+      if (now - metSince.current >= HOLD_MS) {
+        metSince.current = null;
+        update({ taskDone: true });
+      }
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [live, task, progress.taskDone, progress.taskStart]);
+
+  useEffect(() => {
+    if (task.kind === "delivery" && delivered && !progress.taskDone) {
+      update({ taskDone: true });
+    }
+  }, [task.kind, delivered, progress.taskDone]);
+
+  function goNext() {
+    if (next === null) {
+      return;
+    }
+    enteredAt.current = Date.now();
+    metSince.current = null;
+    setFeedback(null);
+    setAnswer("");
+    if (next.newStep) {
+      setConceptOpen(true);
+    }
+    setProgress(freshProgress(next.stepIndex, next.taskIndex));
+  }
 
   function selectQuiz(index: number) {
-    if (quizDone || !step.question) {
+    if (progress.taskDone || !task.question) {
       return;
     }
-    setSelected(index);
-    setQuizWrong(false);
-    if (index === step.question.answerIndex) {
-      setQuizDone(true);
+    if (index === task.question.answerIndex) {
+      update({ selected: index, taskDone: true, answerWrong: false });
     } else {
-      setQuizWrong(true);
+      update({ selected: index, answerWrong: true });
     }
   }
 
-  function selectPrediction(index: number) {
-    if (predictionDone || !step.prediction) {
+  function submitAnswer(event: React.FormEvent) {
+    event.preventDefault();
+    if (progress.taskDone) {
       return;
     }
-    setPredictionSelected(index);
-    setPredictionWrong(false);
-    if (index === step.prediction.answerIndex) {
-      setPredictionDone(true);
+    if (checkAnswer(task, answer)) {
+      update({ taskDone: true, answerWrong: false });
     } else {
-      setPredictionWrong(true);
+      update({ answerWrong: true });
     }
-  }
-
-  function nextStep() {
-    if (isLast) {
-      return;
-    }
-    setStepIndex((index) => index + 1);
-    setSelected(null);
-    setQuizDone(false);
-    setQuizWrong(false);
-    setPredictionSelected(null);
-    setPredictionDone(false);
-    setPredictionWrong(false);
-    setHintsShown(0);
-    setSolutionVisible(false);
-    setMotionStart(null);
-    setMotionDone(false);
   }
 
   function preserveTerminalFocus(event: React.MouseEvent<HTMLElement>) {
@@ -450,6 +418,10 @@ export default function MissionPanel({
     }
   }
 
+  const hintsExhausted = progress.hintsShown >= task.hints.length;
+  const showSuccess = isLastTask && delivered;
+  const learned = learnedUpTo(mission, progress.stepIndex);
+
   return (
     <aside
       className="panel mission-panel"
@@ -459,7 +431,9 @@ export default function MissionPanel({
     >
       <div className="panel-header mission-header">
         <div>
-          <p className="eyebrow">Módulo {stepIndex + 1} de {mission.steps.length}</p>
+          <p className="eyebrow" data-testid="module-counter">
+            Módulo {progress.stepIndex + 1} de {mission.steps.length}
+          </p>
           <h2>{mission.title}</h2>
         </div>
         <button
@@ -472,8 +446,51 @@ export default function MissionPanel({
         </button>
       </div>
 
-      <div className="mission-body" data-testid="mission-step" data-step={step.id}>
-        {delivered && isLast ? (
+      <div className="course-progress">
+        <div
+          className="progress-bar"
+          data-testid="course-progress"
+          data-done={done}
+          data-total={total}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={done}
+        >
+          <span style={{ width: `${(done / total) * 100}%` }} />
+        </div>
+        <span className="progress-label">
+          {done} de {total} desafios
+        </span>
+        <ol className="module-map" data-testid="module-map">
+          {mission.steps.map((item, index) => {
+            const state =
+              index < progress.stepIndex
+                ? "done"
+                : index === progress.stepIndex
+                  ? "current"
+                  : "next";
+            return (
+              <li
+                key={item.id}
+                className={`module-dot module-${state}`}
+                data-state={state}
+                title={item.title}
+              >
+                {state === "done" ? "✓" : index + 1}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      <div
+        className="mission-body"
+        data-testid="mission-step"
+        data-step={step.id}
+        data-task={task.id}
+      >
+        {showSuccess ? (
           <Success
             mission={mission}
             busy={busy}
@@ -482,241 +499,308 @@ export default function MissionPanel({
           />
         ) : (
           <>
-            {stepIndex === 0 ? (
+            {progress.stepIndex === 0 && progress.taskIndex === 0 ? (
               <p className="mission-intro">{mission.intro}</p>
             ) : null}
             <p className="mission-title">{step.title}</p>
-            <div className="concept">
-              <span className="concept-label">Conceito</span>
+            <p className="mission-goal">
+              <strong>Objetivo:</strong> {step.goal}
+            </p>
+            <details
+              className="concept"
+              open={conceptOpen}
+              onToggle={(event) =>
+                setConceptOpen((event.target as HTMLDetailsElement).open)
+              }
+              data-testid="concept"
+            >
+              <summary className="concept-label">Conceito</summary>
               <p>{step.concept}</p>
-            </div>
-            {step.why ? (
               <p className="mission-why">
                 <strong>Por que importa:</strong> {step.why}
               </p>
-            ) : null}
-            {step.example && step.example.length > 0 ? (
-              <div className="mission-example">
-                <span className="concept-label">Exemplo comentado</span>
-                <pre>{step.example.join("\n")}</pre>
+              {step.example.length > 0 ? (
+                <div className="mission-example">
+                  <span className="concept-label">Exemplo comentado</span>
+                  <pre>{step.example.join("\n")}</pre>
+                </div>
+              ) : null}
+            </details>
+
+            <ol className="task-checklist" data-testid="task-checklist">
+              {step.tasks.map((item, index) => {
+                const state =
+                  index < progress.taskIndex ||
+                  (index === progress.taskIndex && progress.taskDone)
+                    ? "done"
+                    : index === progress.taskIndex
+                      ? "current"
+                      : "next";
+                return (
+                  <li key={item.id} className={`task-${state}`} data-state={state}>
+                    <span className="task-mark">
+                      {state === "done" ? "✓" : state === "current" ? "▸" : "○"}
+                    </span>
+                    {item.title}
+                  </li>
+                );
+              })}
+            </ol>
+
+            <section
+              className={`task-card task-${task.kind} ${progress.taskDone ? "task-card-done" : ""}`}
+              data-testid="task-card"
+              data-kind={task.kind}
+              data-done={progress.taskDone}
+            >
+              <div className="task-card-header">
+                <span className="task-kind">{kindLabels[task.kind]}</span>
+                <span className="task-count">
+                  Desafio {progress.taskIndex + 1} de {step.tasks.length}
+                </span>
               </div>
-            ) : null}
-            <p className="mission-action">
-              <strong>Ação:</strong> {step.action}
-            </p>
-            {step.exercise ? (
-              <p className="mission-exercise">
-                <strong>Exercício:</strong> {step.exercise}
-              </p>
-            ) : null}
-            {step.observe ? (
-              <p className="mission-observe">
-                <strong>Observe:</strong> {step.observe}
-              </p>
-            ) : null}
+              <h3 className="task-title">{task.title}</h3>
+              <p className="task-prompt">{task.prompt}</p>
 
-            {step.kind !== "delivery" ? (
-              <Hints
-                step={step}
-                hintsShown={hintsShown}
-                setHintsShown={setHintsShown}
-              />
-            ) : null}
+              {task.insertCommand && !progress.taskDone ? (
+                <CommandPreview
+                  command={task.insertCommand}
+                  terminalState={terminalState}
+                  insertNotice={insertNotice}
+                  onInsert={onInsert}
+                />
+              ) : null}
 
-            {step.kind !== "delivery" &&
-            hintsShown >= step.hints.length &&
-            step.solution ? (
-              <div className="solution">
-                <p className="solution-note">
-                  Solução completa — use Copiar e execute no terminal.
+              {task.kind === "answer" ? (
+                <form className="answer-form" onSubmit={submitAnswer}>
+                  <input
+                    className="answer-input"
+                    value={answer}
+                    onChange={(event) => setAnswer(event.target.value)}
+                    placeholder={task.placeholder ?? "sua resposta"}
+                    disabled={progress.taskDone}
+                    data-testid="answer-input"
+                    aria-label="Resposta"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="submit"
+                    className="button button-primary button-small"
+                    disabled={progress.taskDone || answer.trim() === ""}
+                    data-testid="answer-submit"
+                  >
+                    Conferir
+                  </button>
+                </form>
+              ) : null}
+
+              {task.kind === "quiz" && task.question ? (
+                <div className="mission-question">
+                  <p>{task.question.prompt}</p>
+                  <div className="option-list">
+                    {task.question.options.map((option, index) => (
+                      <button
+                        key={option}
+                        className={[
+                          "option-button",
+                          progress.selected === index ? "option-selected" : "",
+                          progress.taskDone && index === task.question!.answerIndex
+                            ? "option-correct"
+                            : "",
+                          progress.answerWrong &&
+                          !progress.taskDone &&
+                          progress.selected === index
+                            ? "option-wrong"
+                            : ""
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                        onClick={() => selectQuiz(index)}
+                        disabled={progress.taskDone}
+                        data-testid="quiz-option"
+                        data-index={index}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {live ? <CriteriaList criteria={criteria} /> : null}
+
+              {task.kind === "delivery" ? (
+                <>
+                  <DeliveryStatus status={missionStatus} />
+                  <ol className="delivery-strategy" data-testid="delivery-strategy">
+                    {(task.strategy ?? []).map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ol>
+                </>
+              ) : null}
+
+              {task.kind === "command" && feedback !== null ? (
+                <p
+                  className={`command-feedback feedback-${feedback.verdict}`}
+                  data-testid="command-feedback"
+                  data-verdict={feedback.verdict}
+                >
+                  {feedbackText(feedback)}
                 </p>
-                {step.solution.map((command, index) => (
-                  <CommandPreview
-                    key={command}
-                    command={command}
-                    terminalState={terminalState}
-                    insertNotice={insertNotice}
-                    onInsert={onInsert}
-                    testId={`solution-command-${index}`}
-                  />
-                ))}
-              </div>
-            ) : null}
+              ) : null}
 
-            {step.kind === "quiz" ? (
-              <>
-                {step.insertCommand ? (
-                  <CommandPreview
-                    command={step.insertCommand}
-                    terminalState={terminalState}
-                    insertNotice={insertNotice}
-                    onInsert={onInsert}
-                  />
-                ) : null}
-                {step.question ? (
-                  <>
-                    <Question
-                      question={step.question}
-                      selected={selected}
-                      done={quizDone}
-                      wrong={quizWrong}
-                      onSelect={selectQuiz}
-                      testId="quiz-option"
-                    />
-                    {quizWrong && !quizDone ? (
-                      <p className="answer-wrong">
-                        Ainda não. Releia a saída do terminal e tente outra
-                        opção.
-                      </p>
-                    ) : null}
-                    {quizDone ? (
-                      <div className="answer-feedback">
-                        <p>{step.feedback}</p>
-                        <button
-                          className="button button-primary"
-                          onClick={nextStep}
-                          data-testid="next-step"
-                        >
-                          Próximo módulo
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="small">Escolha uma opção para conferir.</p>
-                    )}
-                  </>
-                ) : null}
-              </>
-            ) : null}
+              {progress.answerWrong && !progress.taskDone ? (
+                <p className="answer-wrong" data-testid="answer-wrong">
+                  {task.kind === "quiz"
+                    ? "Ainda não. Releia o conceito e tente outra opção."
+                    : "Ainda não. Confira a saída no terminal e tente de novo."}
+                </p>
+              ) : null}
 
-            {step.kind === "motion" ? (
-              <>
-                {step.prediction ? (
-                  <>
-                    <Question
-                      question={step.prediction}
-                      selected={predictionSelected}
-                      done={predictionDone}
-                      wrong={predictionWrong}
-                      onSelect={selectPrediction}
-                      testId="prediction-option"
-                    />
-                    {predictionWrong && !predictionDone ? (
-                      <p className="answer-wrong">
-                        Observe a direção do robô e tente novamente.
-                      </p>
-                    ) : null}
-                  </>
-                ) : null}
-                {predictionDone && step.command ? (
-                  <CommandPreview
-                    command={step.command}
-                    terminalState={terminalState}
-                    insertNotice={insertNotice}
-                    onInsert={onInsert}
-                  />
-                ) : null}
-                {predictionDone ? (
-                  <p className="motion-reference" data-testid="motion-reference">
-                    {motionStart
-                      ? `Pose de referência: x=${motionStart.x.toFixed(2)}, y=${motionStart.y.toFixed(2)}`
-                      : "Aguardando o terminal estar no prompt e vazio para capturar a pose de referência."}
-                  </p>
-                ) : null}
-                {motionDone ? (
-                  <div className="answer-feedback">
-                    <p>{step.feedback}</p>
-                    <p className="small">
-                      Deslocamento observado a partir da referência. O robô
-                      também voltou a ficar parado.
+              <p
+                className={`task-status ${progress.taskDone ? "task-status-done" : ""}`}
+                data-testid="task-status"
+                data-done={progress.taskDone}
+              >
+                {progress.taskDone
+                  ? "Desafio concluído."
+                  : task.kind === "command"
+                    ? "Aguardando o comando no terminal."
+                    : task.kind === "answer"
+                      ? "Descubra no terminal e digite a resposta."
+                      : task.kind === "quiz"
+                        ? "Escolha uma opção."
+                        : task.kind === "delivery"
+                          ? "O mission_monitor confirma a entrega."
+                          : "Conferido ao vivo; o robô precisa parar."}
+              </p>
+
+              {progress.taskDone ? (
+                <div className="answer-feedback">
+                  <p>{task.feedback}</p>
+                  {task.observe ? (
+                    <p className="mission-observe">
+                      <strong>Observe:</strong> {task.observe}
                     </p>
+                  ) : null}
+                  {next !== null ? (
                     <button
                       className="button button-primary"
-                      onClick={nextStep}
-                      data-testid="next-step"
+                      onClick={goNext}
+                      data-testid="next-task"
                     >
-                      Próximo módulo
+                      {next.newStep ? "Próximo módulo" : "Próximo desafio"}
                     </button>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
-
-            {step.kind === "delivery" ? (
-              <>
-                <DeliveryStatus status={missionStatus} step={step} />
-                <Hints
-                  step={step}
-                  hintsShown={hintsShown}
-                  setHintsShown={setHintsShown}
-                />
-                {hintsShown >= step.hints.length && step.solution ? (
-                  <div className="solution">
-                    <button
-                      className="button button-secondary button-small"
-                      onClick={() => setSolutionVisible((visible) => !visible)}
-                      data-testid="toggle-solution"
-                    >
-                      {solutionVisible
-                        ? "Ocultar solução completa"
-                        : "Mostrar solução completa (opcional)"}
-                    </button>
-                    {solutionVisible ? (
-                      <>
-                        <p className="solution-note">
-                          {step.hintsNote} Pose de partida esperada:
-                          {" "}
-                          x≈{step.solutionStart?.x.toFixed(2)}, y≈
-                          {step.solutionStart?.y.toFixed(2)}, yaw≈
-                          {step.solutionStart?.yaw.toFixed(2)}.{" "}
-                          {solutionAtStart
-                            ? "A pose atual está dentro da tolerância."
-                            : "A pose atual não está na partida; use as dicas ou ajuste manualmente."}
-                        </p>
-                        {step.solution.map((command, index) => (
-                          <CommandPreview
-                            key={command}
-                            command={command}
-                            terminalState={terminalState}
-                            insertNotice={insertNotice}
-                            onInsert={onInsert}
-                            testId={`solution-command-${index}`}
-                          />
-                        ))}
-                      </>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  {task.observe && task.kind !== "answer" ? (
+                    <p className="mission-observe">
+                      <strong>Observe:</strong> {task.observe}
+                    </p>
+                  ) : null}
+                  <div className="hints">
+                    {task.hints.slice(0, progress.hintsShown).map((hint, index) => (
+                      <p className="hint" key={hint}>
+                        <strong>Dica {index + 1}:</strong> {hint}
+                      </p>
+                    ))}
+                    {task.hints.length > 0 ? (
+                      <button
+                        className="button button-ghost button-small"
+                        onClick={() =>
+                          update({
+                            hintsShown: Math.min(
+                              progress.hintsShown + 1,
+                              task.hints.length
+                            )
+                          })
+                        }
+                        disabled={hintsExhausted}
+                        data-testid="hint-button"
+                      >
+                        {progress.hintsShown === 0
+                          ? "Mostrar dica"
+                          : hintsExhausted
+                            ? "Dicas esgotadas"
+                            : "Mais uma dica"}
+                      </button>
                     ) : null}
                   </div>
-                ) : null}
-              </>
-            ) : null}
+                  {hintsExhausted && task.solution && task.solution.length > 0 ? (
+                    <div className="solution">
+                      <button
+                        className="button button-secondary button-small"
+                        onClick={() => update({ solutionVisible: !progress.solutionVisible })}
+                        data-testid="toggle-solution"
+                      >
+                        {progress.solutionVisible ? "Ocultar solução" : "Mostrar solução"}
+                      </button>
+                      {progress.solutionVisible ? (
+                        <>
+                          <p className="solution-note">
+                            {task.solutionNote ??
+                              "Solução de referência: execute e confira o resultado."}
+                          </p>
+                          {task.solution.map((command, index) => (
+                            <CommandPreview
+                              key={`${index}-${command}`}
+                              command={command}
+                              terminalState={terminalState}
+                              insertNotice={insertNotice}
+                              onInsert={onInsert}
+                              testId={`solution-command-${index}`}
+                            />
+                          ))}
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </section>
           </>
         )}
+
+        <details className="cheat-sheet" data-testid="cheat-sheet">
+          <summary>Sua cola de comandos ({learned.length})</summary>
+          <dl>
+            {learned.map((item) => (
+              <div className="cheat-row" key={item.command}>
+                <dt>
+                  <code>{item.command}</code>
+                </dt>
+                <dd>{item.meaning}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+        <p className="terminal-help mission-terminal-help">
+          Tab completa caminhos e comandos; ↑ traz o último comando. Ctrl+C
+          interrompe e Ctrl+Shift+E sai do terminal e foca a aula.
+        </p>
         <p className="mission-footnote">
           O progresso fica nesta sessão e sobrevive a recarregar a página.
           Reiniciar recria a sessão, a pose inicial e o progresso.
         </p>
-        <p className="terminal-help mission-terminal-help">
-          Tab completa caminhos e comandos; em prefixo ambíguo, Tab novamente
-          lista as opções. Use Ctrl+C para interromper e Ctrl+Shift+E para sair
-          do terminal e focar a aula.
-        </p>
         <details className="free-drive-help mission-free-drive" data-testid="free-drive-help">
           <summary>Condução livre: comandos</summary>
           <p>
-            Para manter o robô andando, use o comando sem <code>timeout</code> e
-            interrompa com Ctrl+C. Para um tempo maior, troque 10 pelo número de
-            segundos desejado.
+            Para manter o robô andando, use o comando sem <code>--times</code> e
+            interrompa com Ctrl+C.
           </p>
-          <pre>{`# andar por 10 segundos
-ros2 topic pub --rate 10 --times 100 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
+          <pre>{`# andar ~3 s a 0,3 m/s
+ros2 topic pub --rate 10 --times 30 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.3}}"
 
-# girar à esquerda
-ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: 0.8}}"
+# girar à esquerda / à direita
+ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: 0.8}}"
+ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: -0.8}}"
 
-# girar à direita
-ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: -0.8}}"
-
-# recuar
-ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: -0.15}}"
+# ajuste fino
+ros2 topic pub --rate 10 --times 2 /cmd_vel geometry_msgs/msg/Twist "{angular: {z: 0.2}}"
 
 # movimento contínuo; pare com Ctrl+C
 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"`}</pre>

@@ -17,6 +17,7 @@ import {
   wsUrl
 } from "./lib/api";
 import type {
+  CourseGuide,
   InsertResult,
   MapData,
   MissionContent,
@@ -89,6 +90,7 @@ export default function App() {
   const [terminalState, setTerminalState] = useState<TerminalState | null>(null);
   const [insertNotice, setInsertNotice] = useState("");
   const [lastCommand, setLastCommand] = useState<TerminalCommand | null>(null);
+  const [guide, setGuide] = useState<CourseGuide | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -672,8 +674,10 @@ export default function App() {
             <MissionPanel
               mission={mission}
               pose={pose}
+              scan={scan}
               missionStatus={missionStatus}
               terminalState={terminalState}
+              lastCommand={lastCommand}
               insertNotice={insertNotice}
               busy={busy}
               restarting={restarting}
@@ -681,6 +685,7 @@ export default function App() {
               onInsert={handleInsert}
               onRestart={handleRestart}
               onProgressChange={handleProgressChange}
+              onGuideChange={setGuide}
             />
           ) : (
             <aside className="panel mission-panel">
@@ -783,6 +788,7 @@ export default function App() {
                         scan={scan}
                         showLidar={showLidar}
                         zoom={zoom}
+                        guide={guide}
                       />
                     </div>
                     <div className="viewport-pane robot-pane">
