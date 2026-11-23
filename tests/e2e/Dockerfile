@@ -3,6 +3,6 @@ FROM mcr.microsoft.com/playwright:v1.52.0-noble@sha256:a021500a801bab0611049217f
 WORKDIR /tests
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY playwright.config.ts stage2a.spec.ts stage2b.spec.ts stage3.spec.ts pilot.spec.ts host-pilot.spec.ts stage4-driving.spec.ts ./
+COPY playwright.config.ts course-helpers.ts stage2a.spec.ts stage2b.spec.ts stage3.spec.ts pilot.spec.ts host-pilot.spec.ts stage4-driving.spec.ts ./
 
 CMD ["npx", "playwright", "test"]

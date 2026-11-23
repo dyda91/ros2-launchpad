@@ -244,13 +244,17 @@ test("focar terminal mantém a condução após avançar um desafio", async ({
   page
 }) => {
   await startSession(page);
-  const mission = await (await page.request.get("/api/mission")).json();
-  const answer = mission.steps[0].question.answerIndex;
-  await page.getByTestId("quiz-option").nth(answer).click();
-  await page.getByTestId("next-step").click();
+  await page.getByTestId("insert-command").click();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("task-status")).toHaveAttribute(
+    "data-done",
+    "true",
+    { timeout: 20_000 }
+  );
+  await page.getByTestId("next-task").click();
   await expect(page.getByTestId("mission-step")).toHaveAttribute(
-    "data-step",
-    "comunicacao"
+    "data-task",
+    "terminal-ls-ros"
   );
   const before = await pose(page);
   await runCommand(
@@ -268,7 +272,6 @@ test("digitação livre depois de navegar sem clicar no terminal", async ({
   page
 }) => {
   await startSession(page);
-  const mission = await (await page.request.get("/api/mission")).json();
   await page.locator(".mission-title").click();
   await page.keyboard.type("echo ANTES_DA_NAVEGACAO");
   await page.keyboard.press("Enter");
@@ -276,12 +279,17 @@ test("digitação livre depois de navegar sem clicar no terminal", async ({
     "ANTES_DA_NAVEGACAO",
     { timeout: 10_000 }
   );
-  const answer = mission.steps[0].question.answerIndex;
-  await page.getByTestId("quiz-option").nth(answer).click();
-  await page.getByTestId("next-step").click();
+  await page.getByTestId("insert-command").click();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("task-status")).toHaveAttribute(
+    "data-done",
+    "true",
+    { timeout: 20_000 }
+  );
+  await page.getByTestId("next-task").click();
   await expect(page.getByTestId("mission-step")).toHaveAttribute(
-    "data-step",
-    "comunicacao"
+    "data-task",
+    "terminal-ls-ros"
   );
   const state = page.getByTestId("terminal-state");
   await page.keyboard.type(
