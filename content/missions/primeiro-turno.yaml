@@ -1,191 +1,470 @@
 id: primeiro-turno
-version: 2
+version: 3
 title: Primeiro Turno
-intro: "Neste curso você vai usar o terminal Linux, entender o grafo ROS 2, ler a odometria, conduzir o robô e usar o LiDAR para chegar à zona de coleta. Digite os comandos no terminal: ele é real."
+intro: "Uma trilha prática em nove módulos: você começa nos primeiros comandos do terminal e termina entregando uma carga no armazém. Cada desafio é conferido pelo próprio laboratório, com o comando que você executou, a odometria, o LiDAR e o monitor da missão. Digite no terminal à direita: ele é real."
 steps:
   - id: terminal
-    kind: quiz
-    title: "Módulo 1 — Terminal Linux e Tab"
-    concept: "O prompt indica que o Bash está pronto. Um comando tem nome, opções e argumentos. Tab completa o que já existe; Ctrl+C interrompe o que está rodando. Ctrl+Shift+E sai do terminal e leva o foco para esta aula."
-    why: "O terminal é a interface real do laboratório. Saber completar e interromper evita digitar caminhos errados e ficar preso em um processo."
+    title: "Módulo 1 — Primeiros passos no terminal"
+    goal: "Executar seus primeiros comandos e descobrir a distribuição do ROS 2 instalada."
+    concept: "O prompt (usuário@máquina:pasta$) indica que o Bash espera um comando. Um comando tem nome, opções e argumentos, separados por espaço; Enter executa. Tab completa nomes de arquivos e comandos que já existem; Tab duas vezes lista as opções quando há mais de uma. Ctrl+C interrompe um comando em execução."
+    why: "Todo o laboratório é operado pelo terminal. Saber onde você está e completar caminhos com Tab evita erros de digitação desde o primeiro dia."
     example:
-      - "pwd                          # mostra o diretório atual"
-      - "ls                           # lista arquivos e pastas"
-      - "ls /opt/ros/jazzy/setup.b<Tab>  # completa setup.bash"
-      - "ros2 top<Tab>                 # completa ros2 topic"
-      - "ls /opt/ros/jazzy/setup.<Tab><Tab>  # lista setup.bash, setup.sh e setup.zsh"
-      - "Ctrl+C                       # interrompe o processo e volta ao prompt"
-    action: "Digite pwd no terminal e pressione Enter. Depois use Tab para completar um caminho."
-    insertCommand: "pwd"
-    exercise: "Execute pwd e ls; em seguida, veja a lista de subcomandos com ros2 <Tab>."
-    observe: "O prompt mostra /ros_ws. O Tab completa sem executar o comando; Enter é que executa."
-    hints:
-      - "O caminho do workspace aparece no prompt e em pwd."
-      - "Tab só completa quando o terminal tem foco; em prefixo ambíguo, Tab novamente lista as opções."
-      - "Ctrl+Shift+E sai do terminal e leva o foco para a aula."
-      - "Se um comando estiver rodando, Ctrl+C devolve o prompt."
-    solution:
-      - "pwd"
-      - "ls"
-    question:
-      prompt: "O que pwd mostra neste laboratório?"
-      options:
-        - "O diretório atual, normalmente /ros_ws."
-        - "A posição do robô no mapa."
-        - "A lista de tópicos ROS."
-      answerIndex: 0
-    feedback: "Isso. pwd mostra o diretório atual do shell; a posição do robô vem de /odom."
-  - id: comunicacao
-    kind: quiz
-    title: "Módulo 2 — Comunicação no ROS 2"
-    concept: "Nós são processos; tópicos são canais; interfaces descrevem o formato das mensagens. Um publicador envia e um assinante recebe. Use Tab para descobrir subcomandos e nomes, em vez de decorar tudo."
-    why: "O robô recebe comandos em um tópico e devolve pose em outro. Entender o grafo permite localizar entradas e saídas sem adivinhar."
+      - "pwd                 # mostra a pasta atual"
+      - "ls                  # lista o conteúdo da pasta atual"
+      - "ls /opt             # lista o conteúdo de outra pasta"
+      - "ls /op<Tab>         # o Tab completa para /opt/"
+    learned:
+      - command: "pwd"
+        meaning: "mostra a pasta atual"
+      - command: "ls <pasta>"
+        meaning: "lista o conteúdo de uma pasta"
+      - command: "Tab / Tab Tab"
+        meaning: "completa ou lista opções"
+      - command: "Ctrl+C"
+        meaning: "interrompe o comando em execução"
+    tasks:
+      - id: terminal-pwd
+        kind: command
+        title: "Onde estou?"
+        prompt: "Execute pwd para descobrir em que pasta o terminal começa. Você pode usar o botão Inserir e depois pressionar Enter no terminal."
+        insertCommand: "pwd"
+        match:
+          - '^pwd$'
+        observe: "A saída é /ros_ws, a pasta de trabalho do ROS 2 neste laboratório."
+        hints:
+          - "Clique em Inserir no terminal e pressione Enter."
+          - "Se preferir digitar, escreva só pwd e pressione Enter."
+        solution:
+          - "pwd"
+        feedback: "Isso. pwd imprime a pasta atual: /ros_ws."
+      - id: terminal-ls-ros
+        kind: command
+        title: "Listar com Tab"
+        prompt: "Liste o conteúdo da pasta /opt/ros. Digite ls /op, pressione Tab para completar e termine o caminho com ros. Não há botão Inserir aqui: digite você."
+        match:
+          - '^ls(\s+-\S+)*\s+/opt/ros/?$'
+        observe: "Cada pasta dentro de /opt/ros é uma distribuição do ROS 2 instalada."
+        hints:
+          - "O comando é ls seguido de um espaço e do caminho."
+          - "Digite ls /op e pressione Tab: o shell completa para /opt/. Depois digite ro e Tab de novo."
+          - "Pressione Enter para executar; o Tab só completa, não executa."
+        solution:
+          - "ls /opt/ros"
+        feedback: "Certo. Você listou uma pasta pelo caminho completo, usando Tab para não errar o nome."
+      - id: terminal-distro
+        kind: answer
+        title: "Qual distribuição?"
+        prompt: "Pela saída do comando anterior, qual é o nome da distribuição do ROS 2 instalada? Digite apenas o nome."
+        placeholder: "nome da distribuição"
+        accept:
+          - "jazzy"
+        hints:
+          - "É a única pasta listada em /opt/ros."
+          - "As distribuições do ROS 2 têm nomes de tartarugas em ordem alfabética: humble, iron, jazzy..."
+        feedback: "Isso: Jazzy Jalisco, a distribuição LTS usada neste laboratório."
+  - id: nos
+    title: "Módulo 2 — Nós: quem está rodando"
+    goal: "Listar os nós do robô e descobrir o papel de cada um."
+    concept: "Um nó é um processo ROS 2 com uma tarefa específica. Neste robô há um nó que recebe seus comandos de velocidade, outro que calcula a odometria, outro que confere a entrega e o bridge que conversa com o simulador. ros2 node list mostra os nós ativos; ros2 node info mostra o que cada um publica e assina."
+    why: "Quando algo não funciona, a primeira pergunta é: o nó responsável está rodando e conectado aos tópicos certos?"
     example:
-      - "ros2 node list                 # processos ROS ativos"
-      - "ros2 topic list                # tópicos disponíveis"
-      - "ros2 topic info /cmd_vel       # publicadores e assinantes"
-      - "ros2 topic type /cmd_vel       # tipo da mensagem"
-      - "ros2 interface show geometry_msgs/msg/Twist  # campos do Twist"
-      - "ros2 topic hz /odom            # frequência de /odom"
-      - "ros2 topic echo --once /odom   # uma amostra da odometria"
-    action: "Use Tab para descobrir topic e, depois, execute ros2 node list e ros2 topic list."
-    insertCommand: "ros2 topic list"
-    exercise: "Descubra o tipo de /cmd_vel com ros2 topic type e veja os campos com ros2 interface show geometry_msgs/msg/Twist."
-    observe: "Note quais tópicos entram no robô e quais trazem dados de volta."
-    hints:
-      - "Digite ros2 top e pressione Tab: o shell completa para ros2 topic."
-      - "Use ros2 topic type /cm e Tab para completar /cmd_vel."
-      - "interface show não publica nada; apenas descreve os campos."
-    solution:
-      - "ros2 topic list"
-      - "ros2 topic type /cmd_vel"
-    question:
-      prompt: "Qual tópico recebe comandos de velocidade e qual tipo ele usa?"
-      options:
-        - "/cmd_vel, com geometry_msgs/msg/Twist."
-        - "/odom, com nav_msgs/msg/Odometry."
-        - "/clock, com rosgraph_msgs/msg/Clock."
-      answerIndex: 0
-    feedback: "Certo. O Twist tem linear e angular, cada um com x, y e z."
+      - "ros2 node list                       # nós ativos"
+      - "ros2 node info /robot_state_publisher  # publicações e assinaturas de um nó"
+      - "ros2 no<Tab>                         # o Tab completa subcomandos do ros2"
+    learned:
+      - command: "ros2 node list"
+        meaning: "lista os nós ativos"
+      - command: "ros2 node info <nó>"
+        meaning: "mostra o que um nó publica e assina"
+    tasks:
+      - id: nos-list
+        kind: command
+        title: "Listar os nós"
+        prompt: "Execute ros2 node list e veja quais processos ROS 2 estão ativos."
+        insertCommand: "ros2 node list"
+        match:
+          - '^ros2 node list$'
+        observe: "Os nomes começam com /. Leia cada um e tente adivinhar sua função."
+        hints:
+          - "Use o botão Inserir ou digite ros2 node list."
+          - "Se nada aparecer, aguarde dois segundos e execute de novo: a descoberta leva um instante."
+        solution:
+          - "ros2 node list"
+        feedback: "Esses são os cinco nós do laboratório."
+      - id: nos-monitor
+        kind: answer
+        title: "Quem confere a entrega?"
+        prompt: "Pela lista de nós, qual deles confere se o robô fez a entrega na zona de coleta? Digite o nome do nó."
+        placeholder: "nome do nó"
+        accept:
+          - "mission_monitor"
+        hints:
+          - "Procure um nome ligado a missão."
+          - "Pode digitar com ou sem a barra inicial."
+        feedback: "Certo: /mission_monitor é a fonte de verdade da entrega no último módulo."
+      - id: nos-watchdog
+        kind: command
+        title: "Investigar o watchdog"
+        prompt: "Monte você mesmo o comando que mostra as informações do nó /cmd_vel_watchdog. Use Tab para completar o nome do nó."
+        match:
+          - '^ros2 node info /cmd_vel_watchdog$'
+        observe: "Em Subscribers aparece /cmd_vel: é este nó que recebe os seus comandos de velocidade."
+        hints:
+          - "O formato é ros2 node info <nome do nó>."
+          - "Digite ros2 node info /cmd e pressione Tab para completar."
+        solution:
+          - "ros2 node info /cmd_vel_watchdog"
+        feedback: "Isso. O watchdog assina /cmd_vel, limita a velocidade e para o robô se os comandos cessarem."
+  - id: topicos
+    title: "Módulo 3 — Tópicos: os canais de dados"
+    goal: "Encontrar os tópicos do robô e descobrir quem publica a odometria."
+    concept: "Tópicos são canais com nome. Um nó publica mensagens em um tópico e outros nós assinam esse tópico para recebê-las. ros2 topic list mostra os canais; ros2 topic info mostra quantos publicadores e assinantes existem, e com -v (verbose) mostra também os nomes dos nós."
+    why: "Comandos entram por /cmd_vel e a pose sai por /odom. Saber quem publica cada tópico ajuda a entender o caminho dos dados."
+    example:
+      - "ros2 topic list            # canais disponíveis"
+      - "ros2 topic list -t         # canais com o tipo da mensagem"
+      - "ros2 topic info /cmd_vel   # contagem de publicadores e assinantes"
+      - "ros2 topic info -v /scan   # inclui o nome de cada nó"
+    learned:
+      - command: "ros2 topic list"
+        meaning: "lista os tópicos"
+      - command: "ros2 topic info -v <tópico>"
+        meaning: "mostra quem publica e quem assina"
+    tasks:
+      - id: topicos-list
+        kind: command
+        title: "Listar os tópicos"
+        prompt: "Execute ros2 topic list e localize /cmd_vel, /odom e /scan."
+        insertCommand: "ros2 topic list"
+        match:
+          - '^ros2 topic list(\s+-\S+)*$'
+        observe: "/cmd_vel é a entrada; /odom e /scan trazem dados do robô."
+        hints:
+          - "Use Inserir ou digite ros2 topic list."
+          - "Experimente também ros2 topic list -t para ver os tipos."
+        solution:
+          - "ros2 topic list"
+        feedback: "Esses são os canais que você vai usar no resto da trilha."
+      - id: topicos-info
+        kind: command
+        title: "Quem publica /odom?"
+        prompt: "Mostre as informações detalhadas do tópico /odom, incluindo os nomes dos nós. Lembre da opção -v."
+        match:
+          - '^ros2 topic info(\s|$)'
+          - '\s(-v|--verbose)(\s|$)'
+          - '\s/odom(\s|$)'
+        observe: "Procure Endpoint type: PUBLISHER e o Node name logo acima."
+        hints:
+          - "O formato é ros2 topic info -v <tópico>."
+          - "Sem -v o comando só conta os publicadores; com -v ele mostra os nomes."
+        solution:
+          - "ros2 topic info -v /odom"
+        feedback: "Isso. Com -v você vê nome do nó, tipo e QoS de cada ponta."
+      - id: topicos-publisher
+        kind: answer
+        title: "Nome do publicador"
+        prompt: "Pela saída anterior, qual nó publica /odom? Digite o nome."
+        placeholder: "nome do nó"
+        accept:
+          - "odom_merge"
+        hints:
+          - "Está na linha Node name do bloco PUBLISHER."
+          - "É um dos nós que você viu no módulo 2."
+        feedback: "Certo: odom_merge combina a pose do simulador com a velocidade das rodas e publica /odom."
+  - id: mensagens
+    title: "Módulo 4 — Mensagens: o formato dos dados"
+    goal: "Descobrir o tipo de /cmd_vel e qual campo faz o robô girar."
+    concept: "Cada tópico transporta um tipo de mensagem. geometry_msgs/msg/Twist tem dois vetores: linear (x, y, z) em m/s e angular (x, y, z) em rad/s. Um robô diferencial só usa linear.x (frente e ré) e angular.z (giro no plano). ros2 topic type mostra o tipo; ros2 interface show mostra os campos."
+    why: "Para comandar o robô você precisa escrever a mensagem no formato certo."
+    example:
+      - "ros2 topic type /odom                          # nav_msgs/msg/Odometry"
+      - "ros2 interface show nav_msgs/msg/Odometry      # campos da odometria"
+    learned:
+      - command: "ros2 topic type <tópico>"
+        meaning: "mostra o tipo da mensagem"
+      - command: "ros2 interface show <tipo>"
+        meaning: "mostra os campos de um tipo"
+    tasks:
+      - id: mensagens-type
+        kind: command
+        title: "Tipo de /cmd_vel"
+        prompt: "Descubra o tipo de mensagem do tópico /cmd_vel."
+        insertCommand: "ros2 topic type /cmd_vel"
+        match:
+          - '^ros2 topic type /cmd_vel$'
+        observe: "A resposta é geometry_msgs/msg/Twist."
+        hints:
+          - "Use Inserir ou digite ros2 topic type /cmd_vel."
+        solution:
+          - "ros2 topic type /cmd_vel"
+        feedback: "Certo: /cmd_vel usa geometry_msgs/msg/Twist."
+      - id: mensagens-show
+        kind: command
+        title: "Campos do Twist"
+        prompt: "Mostre os campos de geometry_msgs/msg/Twist com ros2 interface show. Use Tab para completar o tipo."
+        match:
+          - '^ros2 interface show geometry_msgs/msg/Twist$'
+        observe: "Há dois Vector3: linear e angular, cada um com x, y e z."
+        hints:
+          - "O formato é ros2 interface show <tipo>."
+          - "Digite ros2 interface show geometry_msgs/msg/Tw e pressione Tab."
+        solution:
+          - "ros2 interface show geometry_msgs/msg/Twist"
+        feedback: "Isso. Agora você sabe escrever um Twist: {linear: {x: ...}, angular: {z: ...}}."
+      - id: mensagens-angular
+        kind: answer
+        title: "Qual campo gira?"
+        prompt: "Qual campo do Twist faz um robô diferencial girar no plano do chão? Responda no formato vetor.eixo."
+        placeholder: "vetor.eixo"
+        accept:
+          - "angular.z"
+          - "angular z"
+        hints:
+          - "Girar é velocidade angular, não linear."
+          - "O chão é o plano x-y; o giro acontece em torno do eixo perpendicular a ele."
+        feedback: "Certo: angular.z. Positivo gira à esquerda (anti-horário), negativo à direita."
   - id: odometria
-    kind: quiz
-    title: "Módulo 3 — Odometria"
-    concept: "Em /odom, position.x e position.y são relativos à origem do referencial odom. Neste armazém, odom foi alinhado à origem do mapa. A orientação vem de um quaternion; o visor calcula o yaw. A velocidade observada fica em twist.twist."
-    why: "A odometria permite comparar o comando enviado com o que o robô realmente fez. É a fonte de verdade da missão."
+    title: "Módulo 5 — Odometria: onde o robô está"
+    goal: "Ler a pose do robô em /odom e filtrar só a posição."
+    concept: "nav_msgs/msg/Odometry traz header.frame_id (o referencial da pose), pose.pose.position (x, y, z em metros), pose.pose.orientation (um quaternion) e twist.twist (a velocidade medida). ros2 topic echo --once mostra uma mensagem e sai; --field mostra só um campo."
+    why: "A odometria compara o que você mandou com o que o robô realmente fez. Nos próximos módulos você vai usá-la para corrigir o movimento."
     example:
-      - "ros2 topic echo --once /odom  # lê pose e velocidade observadas"
-      - "ros2 topic hz /odom           # confere a taxa de publicação"
-      - "ros2 topic info /odom         # confere publicadores"
-    action: "Execute uma leitura de /odom e localize position.x, position.y e orientation."
-    insertCommand: "ros2 topic echo --once /odom"
-    exercise: "Leia /odom antes e depois de um pequeno movimento e compare x, y e yaw no visor."
-    observe: "O robô nasce perto de x=0, y=0 e yaw=0. O yaw positivo gira no sentido anti-horário."
-    hints:
-      - "position está dentro de pose.pose.position."
-      - "orientation tem x, y, z e w; não é o yaw diretamente."
-      - "O visor mostra o yaw calculado a partir do quaternion."
-    solution:
-      - "ros2 topic echo --once /odom"
-    question:
-      prompt: "O que x e y representam em /odom?"
-      options:
-        - "A posição relativa à origem do referencial odom."
-        - "A distância até a parede mais próxima."
-        - "O número de nós ROS ativos."
-      answerIndex: 0
-    feedback: "Certo. Neste cenário a origem de odom foi alinhada à origem do mapa; isso não é uma regra universal do ROS."
-  - id: conducao
-    kind: motion
-    title: "Módulo 4 — Condução livre sem confundir X do mapa com a frente"
-    concept: "O eixo X do mapa é fixo; a frente do robô muda quando ele gira. linear.x positivo anda para a frente do robô, não necessariamente para o leste do mapa. angular.z positivo gira à esquerda; negativo gira à direita. O comando precisa ser mantido por um tempo; o watchdog para o robô 0,5 s após o último comando. A ré é linear.x negativo. O robô se move no plano x-y, não só no eixo X."
-    why: "Para ir a um ponto depois de uma curva é preciso compor velocidade linear com a orientação; usar só x do mapa produz trajetórias erradas."
+      - "ros2 topic echo --once /odom                          # uma mensagem completa"
+      - "ros2 topic echo --once /odom --field twist.twist      # só a velocidade"
+      - "ros2 topic echo /odom   # contínuo; pare com Ctrl+C"
+    learned:
+      - command: "ros2 topic echo --once <tópico>"
+        meaning: "mostra uma mensagem e sai"
+      - command: "--field a.b.c"
+        meaning: "filtra um campo da mensagem"
+    tasks:
+      - id: odometria-echo
+        kind: command
+        title: "Uma leitura de /odom"
+        prompt: "Mostre uma única mensagem de /odom."
+        insertCommand: "ros2 topic echo --once /odom"
+        match:
+          - '^ros2 topic echo(\s|$)'
+          - '\s--once(\s|$)'
+          - '\s/odom(\s|$)'
+        observe: "Role a saída para cima e encontre header, pose e twist."
+        hints:
+          - "Use Inserir ou digite ros2 topic echo --once /odom."
+          - "Sem --once o comando continua imprimindo; use Ctrl+C para sair."
+        solution:
+          - "ros2 topic echo --once /odom"
+        feedback: "Isso. Uma mensagem de odometria completa."
+      - id: odometria-frame
+        kind: answer
+        title: "Referencial da pose"
+        prompt: "Qual é o header.frame_id das mensagens de /odom? Digite o valor."
+        placeholder: "frame_id"
+        accept:
+          - "odom"
+        hints:
+          - "Está no início da mensagem, dentro de header."
+          - "Repare também em child_frame_id: é o referencial do corpo do robô."
+        feedback: "Certo: a pose está no referencial odom, e child_frame_id é base_link."
+      - id: odometria-field
+        kind: command
+        title: "Só a posição"
+        prompt: "Mostre uma mensagem de /odom com apenas o campo pose.pose.position."
+        match:
+          - '^ros2 topic echo(\s|$)'
+          - '\s--once(\s|$)'
+          - '\s/odom(\s|$)'
+          - '\s--field\s+pose\.pose\.position(\s|$)'
+        observe: "Agora a saída tem só x, y e z. O robô nasce perto de x=0, y=0."
+        hints:
+          - "Comece pelo comando anterior e acrescente --field."
+          - "Use ↑ no terminal para trazer o último comando e edite no fim."
+        solution:
+          - "ros2 topic echo --once /odom --field pose.pose.position"
+        feedback: "Isso. --field é o jeito rápido de medir a posição nos próximos módulos."
+  - id: movimento
+    title: "Módulo 6 — Movimento: frente e ré"
+    goal: "Publicar em /cmd_vel para levar o robô a uma faixa do armazém e voltar de ré."
+    concept: "ros2 topic pub publica mensagens: --rate 10 manda 10 por segundo e --times N para depois de N mensagens, ou seja, N/10 segundos. linear.x positivo anda para a frente do robô; negativo dá ré. O watchdog limita a 0,35 m/s e mantém o último comando por 0,5 s depois que as mensagens param; por isso o robô anda um pouco além de v × N/10."
+    why: "Comandar velocidade por um tempo é a forma mais simples de mover um robô. Medir o resultado mostra que o movimento real não é exatamente o planejado."
     example:
-      - "ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\"   # avança 2 s"
-      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\" # esquerda"
-      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: -0.8}}\" # direita"
-      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: -0.15}}\" # ré"
-    action: "Escolha um ponto no mapa e monte uma sequência de avançar, girar e avançar. Execute os comandos com espera do prompt entre eles."
-    exercise: "Faça esquerda, avance, direita e ré. Confira o yaw e o deslocamento no mapa depois de cada passo."
-    observe: "Depois de girar, avançar muda x e y no mapa. Para voltar ao prompt de um comando contínuo, use Ctrl+C."
-    insertCommand: "ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
-    prediction:
-      prompt: "Se o robô acabou de girar 90° à esquerda, o que linear.x positivo faz?"
-      options:
-        - "Move o robô para a frente da nova orientação, que pode ser outro eixo do mapa."
-        - "Move o robô para a direita do mapa, independentemente da orientação."
-        - "Gira o robô sem deslocar."
-      answerIndex: 0
-    command: "ros2 topic pub --rate 10 --times 30 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
-    minDisplacementM: 0.12
-    stopSpeedMps: 0.02
-    hints:
-      - "linear.x é em m/s; angular.z é em rad/s. O sinal de angular.z define o sentido."
-      - "Espere o prompt entre comandos; use Ctrl+C para parar um comando sem timeout."
-      - "Uma sequência útil é: timeout 2 ... linear x; timeout 1.5 ... angular z; timeout 2 ... linear x."
-      - "Para conferir a ré, compare o deslocamento com a frente do robô, não só com o eixo X do mapa."
-    solution:
-      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\""
-      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
-      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: -0.8}}\""
-      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: -0.15}}\""
-    feedback: "Isso. Você combinou translação e rotação e observou a pose real."
+      - "ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\"   # ~2 s a 0,2 m/s"
+      - "↑ e Enter                          # repete o último comando"
+      - "↑, edite o número e Enter          # ajusta e repete"
+    learned:
+      - command: "ros2 topic pub --rate 10 --times N /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: V}}\""
+        meaning: "anda por N/10 s a V m/s (V negativo dá ré)"
+      - command: "↑ + Enter"
+        meaning: "repete ou edita o último comando"
+    tasks:
+      - id: movimento-watchdog
+        kind: quiz
+        title: "Antes de andar"
+        prompt: "Leia o conceito do módulo e responda."
+        question:
+          prompt: "Se você publicar 0,3 m/s com --times 30, por quanto tempo o robô recebe o comando, aproximadamente?"
+          options:
+            - "3 s de mensagens, mais 0,5 s mantidos pelo watchdog."
+            - "30 s, uma mensagem por segundo."
+            - "Para sempre, até usar Ctrl+C."
+          answerIndex: 0
+        hints:
+          - "--rate 10 significa 10 mensagens por segundo."
+        feedback: "Certo. 30 mensagens a 10 Hz são 3 s; o watchdog segura o último comando por mais 0,5 s."
+      - id: movimento-faixa-a
+        kind: pose
+        title: "Até a faixa A"
+        prompt: "Leve o robô para dentro da faixa A, desenhada no visor, e deixe-o parar. O comando sugerido anda cerca de 0,9 m."
+        insertCommand: "ros2 topic pub --rate 10 --times 30 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
+        region:
+          label: "Faixa A"
+          min: [0.8, -0.3]
+          max: [1.6, 0.3]
+        observe: "Compare o x no visor com 0,3 m/s × 3 s = 0,9 m."
+        hints:
+          - "Use Inserir e pressione Enter. Espere o prompt voltar."
+          - "Se o robô parou antes da faixa, publique de novo com --times menor, por exemplo 5."
+          - "A conferência só acontece com o robô parado."
+        solution:
+          - "ros2 topic pub --rate 10 --times 30 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
+        feedback: "Isso. Você comandou velocidade por um tempo e conferiu a posição real."
+      - id: movimento-re
+        kind: pose
+        title: "Ré sem comando pronto"
+        prompt: "Agora dê ré pelo menos 0,3 m. Não há botão Inserir: traga o comando anterior com ↑ e edite a velocidade."
+        direction: backward
+        minDistanceM: 0.3
+        observe: "A ré é medida na direção em que o robô estava virado quando o desafio começou."
+        hints:
+          - "Pressione ↑ no terminal para trazer o último comando."
+          - "Troque x: 0.3 por x: -0.3. Com --times 15 a ré fica em torno de 0,45 m."
+        solution:
+          - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: -0.3}}\""
+        feedback: "Certo. linear.x negativo é ré, sempre em relação à frente do robô."
+  - id: rotacao
+    title: "Módulo 7 — Rotação e malha fechada"
+    goal: "Girar até um ângulo e planejar um trajeto até a faixa B."
+    concept: "angular.z em rad/s gira o robô; positivo é anti-horário (esquerda). 90° são π/2 ≈ 1,57 rad. O giro real varia de uma tentativa para outra, então o jeito confiável é a malha fechada: comandar, medir o yaw no visor e corrigir com comandos curtos e lentos, como {angular: {z: 0.2}} com --times 2."
+    why: "Robôs reais nunca executam um comando exatamente. Medir e corrigir é a base de todo controle."
+    example:
+      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\"   # ~90°, varia uns 10°"
+      - "ros2 topic pub --rate 10 --times 2 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.2}}\"    # ajuste fino de poucos graus"
+      - "tempo ≈ distância ÷ velocidade;  --times ≈ tempo × 10"
+    learned:
+      - command: "ros2 topic pub --rate 10 --times N /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: W}}\""
+        meaning: "gira a W rad/s (positivo à esquerda)"
+      - command: "comandar → medir → corrigir"
+        meaning: "malha fechada"
+    tasks:
+      - id: rotacao-90
+        kind: pose
+        title: "Virar para o norte"
+        prompt: "Gire o robô até o yaw ficar em 90° (apontando para o alto do mapa), com tolerância de 15°. A linha tracejada no visor mostra o alvo."
+        yawDeg: 90
+        yawToleranceDeg: 15
+        observe: "O painel mostra o yaw atual em graus. Se passar do alvo, gire de volta com z negativo."
+        hints:
+          - "Comece com z: 0.8 e --times 15; depois confira o yaw."
+          - "Para corrigir poucos graus, use z: 0.2 ou -0.2 com --times 2."
+          - "Não importa quantos comandos você use: vale a pose final, parada."
+        solution:
+          - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\""
+          - "ros2 topic pub --rate 10 --times 2 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.2}}\""
+        feedback: "Isso. Você usou a medida para fechar a malha."
+      - id: rotacao-faixa-b
+        kind: pose
+        title: "Até a faixa B"
+        prompt: "Leve o robô até a faixa B (x entre 0,2 e 1,8; y entre 1,6 e 2,4). Planeje: quantos metros faltam? Quanto tempo a 0,3 m/s? Qual --times?"
+        region:
+          label: "Faixa B"
+          min: [0.2, 1.6]
+          max: [1.8, 2.4]
+        observe: "Mire no meio da faixa: a caixa C fica logo ao norte dela, e você vai precisar dela no próximo módulo."
+        hints:
+          - "Do ponto atual até y ≈ 2,0 são cerca de 2 m."
+          - "2 m a 0,3 m/s levam ~6,7 s, ou seja, --times perto de 65. Ande menos e complete depois, se preferir."
+          - "Se o rumo estiver torto, corrija o yaw antes de avançar."
+        solution:
+          - "ros2 topic pub --rate 10 --times 60 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
+          - "ros2 topic pub --rate 10 --times 5 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
+        feedback: "Certo. Distância, velocidade e tempo: você planejou e corrigiu."
   - id: lidar
-    kind: quiz
-    title: "Módulo 5 — LiDAR e obstáculos"
-    concept: "O LiDAR publica /scan com sensor_msgs/msg/LaserScan. ranges são distâncias em metros; angle_min e angle_increment dizem a direção de cada leitura; range_min e range_max limitam a medição. O sensor está no robô e o visor transforma os pontos para o mapa usando a pose de /odom. Distâncias menores indicam uma parede ou obstáculo próximo."
-    why: "Sem perceber o ambiente, o robô só pode seguir comandos no escuro. O /scan mostra o que está ao redor e permite escolher um desvio."
+    title: "Módulo 8 — LiDAR: enxergar obstáculos"
+    goal: "Ler a configuração do LiDAR e usar a leitura frontal para parar perto de uma caixa."
+    concept: "/scan usa sensor_msgs/msg/LaserScan: ranges tem uma distância por ângulo, de angle_min a angle_max com passo angle_increment. Aqui são 360 leituras de −π a π; o índice 180 é a frente do robô. range_min e range_max limitam o que o sensor mede. O visor desenha os pontos e o setor frontal."
+    why: "Com o LiDAR o robô percebe o que está ao redor e pode parar antes de bater."
     example:
-      - "ros2 topic type /scan          # sensor_msgs/msg/LaserScan"
-      - "ros2 topic echo --once /scan   # uma varredura real"
-      - "ros2 topic hz /scan            # frequência do sensor"
-      - "No visor, ligue a camada LiDAR e compare as leituras ao girar."
-    action: "Abra uma leitura de /scan no visor, aproxime o robô de um obstáculo e compare as distâncias antes e depois."
-    insertCommand: "ros2 topic echo --once /scan"
-    exercise: "Gire o robô perto de uma parede e explique por que o conjunto de pontos mudou. Depois escolha esquerda ou direita para contornar o obstáculo."
-    observe: "Os pontos azuis acompanham a pose. Uma parede próxima deve aparecer como uma sequência de pontos a uma distância pequena e coerente."
-    hints:
-      - "ranges tem uma entrada por ângulo; valores nulos representam leituras inválidas."
-      - "O frame do sensor é lidar_link; o visor aplica a pose do robô."
-      - "Ao girar, os ângulos dos pontos mudam em relação ao mapa."
-    solution:
-      - "ros2 topic echo --once /scan"
-    question:
-      prompt: "Se o robô se aproxima de uma parede, o que deve acontecer com as leituras naquela direção?"
-      options:
-        - "A distância em ranges diminui naquela direção."
-        - "O yaw do robô vira zero automaticamente."
-        - "O tópico /scan deixa de existir."
-      answerIndex: 0
-    feedback: "Certo. O LiDAR mede distância; aproximar-se reduz a leitura na direção do obstáculo."
+      - "ros2 topic echo --once /scan --field angle_min   # primeiro ângulo, em rad"
+      - "ros2 topic echo --once /scan --field ranges      # as 360 distâncias"
+      - "ros2 topic hz /scan                             # ~10 Hz; Ctrl+C para sair"
+    learned:
+      - command: "ros2 topic echo --once /scan --field <campo>"
+        meaning: "lê um campo do LiDAR"
+      - command: "ranges[180]"
+        meaning: "distância à frente do robô"
+    tasks:
+      - id: lidar-range-max
+        kind: answer
+        title: "Alcance máximo"
+        prompt: "Use --field para descobrir o range_max do LiDAR, em metros. Digite o número."
+        placeholder: "metros"
+        numeric:
+          value: 8.0
+          tolerance: 0.05
+        hints:
+          - "O comando é ros2 topic echo --once /scan --field range_max."
+          - "Pode usar vírgula ou ponto decimal."
+        feedback: "Certo: o sensor mede até 8 m (e no mínimo 0,12 m)."
+      - id: lidar-frente
+        kind: scan
+        title: "Parar perto da caixa C"
+        prompt: "Avance devagar até a leitura frontal do LiDAR ficar entre 0,35 e 0,70 m e pare. A caixa C fica ao norte da faixa B."
+        sectorDeg: 10
+        minM: 0.35
+        maxM: 0.70
+        observe: "O painel mostra a menor distância no setor de ±10° à frente. Ande em passos curtos e meça."
+        hints:
+          - "A partir da faixa B, a caixa está a pouco mais de 1,5 m."
+          - "Avance com --times 30 a 0,3 m/s, confira e complete com --times 5 a 0,2 m/s."
+          - "Se a leitura não muda, talvez a caixa esteja fora do setor frontal: corrija o yaw."
+        solution:
+          - "ros2 topic pub --rate 10 --times 30 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
+          - "ros2 topic pub --rate 10 --times 5 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
+        feedback: "Isso. Você parou guiado pelo sensor, não pelo tempo."
   - id: entrega
-    kind: delivery
-    title: "Módulo 6 — Entrega no armazém"
-    concept: "Planeje uma sequência usando a frente do robô e a pose no mapa. Use o LiDAR para identificar o obstáculo e escolha um desvio. A entrega só conta quando o robô fica dentro da zona e parado por 2 s; o mission_monitor é a fonte de verdade."
-    why: "A entrega reúne terminal, ROS, odometria, condução e percepção em um objetivo verificável."
+    title: "Módulo 9 — Entrega no armazém"
+    goal: "Levar o robô até a zona de coleta, contornando a coluna, e parar dentro dela."
+    concept: "A entrega reúne tudo: planejar uma rota, girar, avançar, medir em /odom e no LiDAR e corrigir. A zona de coleta vai de x 5,1 a 6,5 e de y 2,5 a 3,9. A coluna B fica em (4,2; 2,8), com raio 0,45 m: o topo dela está em y ≈ 3,25. O mission_monitor confirma a entrega quando o robô fica 2 s parado dentro da zona."
+    why: "Um objetivo real é verificado pelo sistema, não pelo aluno: só conta quando o monitor diz delivered."
     example:
-      - "ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
-      - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\""
-      - "ros2 topic pub --rate 10 --times 20 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
-    action: "Escolha um desvio para o obstáculo, conduza até a zona de coleta e pare dentro dela."
-    exercise: "Use a camada LiDAR para escolher esquerda ou direita, avance, corrija o rumo e pare na zona."
-    observe: "O painel mostra in_zone, speed_mps e stopped_for_s; delivered vira true após 2 s parado."
-    hints:
-      - "Use o visor e o LiDAR para corrigir o rumo. Faça movimentos curtos."
-      - "A zona fica à direita e acima do ponto inicial; contorne o obstáculo em vez de atravessá-lo."
-      - "Para parar um comando contínuo, use Ctrl+C."
-      - "Solução opcional: partindo de x≈0,44, y≈0, yaw≈0, avance 16,5 s a 0,35 m/s, gire 2,85 s a 0,8 rad/s e avance 10 s."
-    solution:
-      - "timeout 16.5 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.35}}\""
-      - "timeout 2.85 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\""
-      - "timeout 10.0 ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.35}}\""
-    solutionStart:
-      x: 0.44
-      y: 0.0
-      yaw: 0.0
-      tolerance: 0.2
-    hintsNote: "A solução completa é opcional e foi calibrada para a pose ao final do módulo de condução."
-    feedback: "Entrega concluída. Você integrou terminal, ROS 2, odometria, condução e LiDAR."
+      - "ros2 topic echo --once /launchpad/mission_status   # estado da entrega"
+    learned:
+      - command: "ros2 topic echo --once /launchpad/mission_status"
+        meaning: "mostra in_zone, stopped_for_s e delivered"
+    tasks:
+      - id: entrega-zona
+        kind: delivery
+        title: "Entrega na zona de coleta"
+        prompt: "Conduza o robô até a zona verde e pare dentro dela por 2 s. Siga a estratégia, medindo depois de cada comando."
+        strategy:
+          - "Gire à direita até o yaw ficar perto de 0° (leste)."
+          - "Avance até x ≈ 2,2: assim você sai de baixo da caixa C."
+          - "Gire à esquerda até ~90° e avance até y ≈ 3,6."
+          - "Gire à direita até ~0°: em y ≈ 3,6 você passa acima da coluna B com folga."
+          - "Avance até x ≈ 5,8 e pare. Confira o painel até aparecer a confirmação."
+        hints:
+          - "Use giros de z: -0.8 com --times 15 e corrija com z: 0.2 e --times 2."
+          - "De x ≈ 2,2 até x ≈ 5,8 são ~3,6 m: a 0,3 m/s, --times perto de 115. Divida em duas partes se preferir."
+          - "Se estiver na zona, mas ainda se movendo, espere: o watchdog para o robô em 0,5 s."
+        solution:
+          - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: -0.8}}\""
+          - "ros2 topic pub --rate 10 --times 2 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.2}}\""
+          - "ros2 topic pub --rate 10 --times 30 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
+          - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\""
+          - "ros2 topic pub --rate 10 --times 5 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
+          - "ros2 topic pub --rate 10 --times 60 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
+        solutionNote: "Os giros e distâncias variam a cada execução: meça o yaw e a posição depois de cada comando e corrija."
+        feedback: "Entrega concluída. Você integrou terminal, ROS 2, odometria, condução em malha fechada e LiDAR."
 success:
   title: "Entrega concluída"
-  body: "Você usou o terminal, identificou os canais do robô, leu a odometria, conduziu com linear e angular, interpretou o LiDAR e parou na zona."
+  body: "Você usou o terminal, investigou nós, tópicos e mensagens, leu a odometria, conduziu em malha fechada, parou guiado pelo LiDAR e entregou na zona."
   hook: "Como o robô saberia que há uma caixa no caminho?"

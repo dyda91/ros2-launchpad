@@ -306,6 +306,9 @@ test-mission: build-app
 		-v "$(CURDIR)/content:/content:ro" \
 		-v "$(CURDIR)/tests:/tests:ro" \
 		-v "$(CURDIR)/apps/api:/app" \
+		-v "$(CURDIR):/repo:ro" \
+		-e LAUNCHPAD_REPO=/repo \
+		-e MISSION_FILE=/content/missions/primeiro-turno.yaml \
 		-w /app ros2-launchpad-api:dev \
 		python /tests/integration/test_mission_content.py -v
 
