@@ -54,6 +54,9 @@ services:
       SESSION_ULIMIT_NOFILE: "${SESSION_ULIMIT_NOFILE:-4096}"
       SESSION_ULIMIT_CORE_MB: "${SESSION_ULIMIT_CORE_MB:-0}"
       SESSION_ULIMIT_FSIZE_MB: "${SESSION_ULIMIT_FSIZE_MB:-64}"
+      SIM_BACKEND: "${SIM_BACKEND:-gazebo}"
+      SESSION_MEMORY: "${SESSION_MEMORY:-2g}"
+      SESSION_CPUS: "${SESSION_CPUS:-2}"
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
       - ./${RUN_HOST_DIR:-run/sessions}:/run/sessions

@@ -5,7 +5,14 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration
+from launch.conditions import IfCondition, UnlessCondition
+from launch.substitutions import (
+    Command,
+    EnvironmentVariable,
+    FindExecutable,
+    LaunchConfiguration,
+    PythonExpression,
+)
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -36,7 +43,17 @@ def generate_launch_description():
         DeclareLaunchArgument("spawn_yaw", default_value=str(spawn["yaw"])),
         DeclareLaunchArgument("watchdog_timeout", default_value="0.5"),
         DeclareLaunchArgument("mission_hold", default_value="2.0"),
+        DeclareLaunchArgument(
+            "sim_backend",
+            default_value=EnvironmentVariable("SIM_BACKEND", default_value="gazebo"),
+        ),
     ]
+    use_gazebo = IfCondition(
+        PythonExpression(["'", LaunchConfiguration("sim_backend"), "' == 'gazebo'"])
+    )
+    use_fast = UnlessCondition(
+        PythonExpression(["'", LaunchConfiguration("sim_backend"), "' == 'gazebo'"])
+    )
 
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -46,6 +63,7 @@ def generate_launch_description():
             "gz_args": f"-r -s {world_file}",
             "on_exit_shutdown": "true",
         }.items(),
+        condition=use_gazebo,
     )
 
     robot_state_publisher = Node(
@@ -80,6 +98,7 @@ def generate_launch_description():
             "-Y",
             LaunchConfiguration("spawn_yaw"),
         ],
+        condition=use_gazebo,
     )
 
     bridge = Node(
@@ -87,6 +106,7 @@ def generate_launch_description():
         executable="parameter_bridge",
         output="screen",
         parameters=[{"config_file": bridge_file}],
+        condition=use_gazebo,
     )
 
     watchdog = Node(
@@ -107,6 +127,24 @@ def generate_launch_description():
         package="launchpad_sim",
         executable="odom_merge",
         output="screen",
+        condition=use_gazebo,
+    )
+
+    fastsim = Node(
+        package="launchpad_sim",
+        executable="fastsim",
+        output="screen",
+        parameters=[
+            {
+                "map_file": map_file,
+                "spawn_x": ParameterValue(LaunchConfiguration("spawn_x"), value_type=float),
+                "spawn_y": ParameterValue(LaunchConfiguration("spawn_y"), value_type=float),
+                "spawn_yaw": ParameterValue(
+                    LaunchConfiguration("spawn_yaw"), value_type=float
+                ),
+            }
+        ],
+        condition=use_fast,
     )
 
     monitor = Node(
@@ -129,6 +167,7 @@ def generate_launch_description():
             robot_state_publisher,
             bridge,
             odom_merge,
+            fastsim,
             watchdog,
             monitor,
             TimerAction(period=2.0, actions=[spawn_robot]),

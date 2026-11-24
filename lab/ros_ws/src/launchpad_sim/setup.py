@@ -30,6 +30,7 @@ setup(
             "cmd_vel_watchdog = launchpad_sim.cmd_vel_watchdog:main",
             "mission_monitor = launchpad_sim.mission_monitor:main",
             "odom_merge = launchpad_sim.odom_merge:main",
+            "fastsim = launchpad_sim.fastsim:main",
             "generate_world = launchpad_sim.generate_world:main",
         ]
     },

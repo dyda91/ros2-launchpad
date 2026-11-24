@@ -17,8 +17,15 @@ SESSION_IDLE_SECONDS ?= 600
 SESSION_WARNING_SECONDS ?= 120
 SESSION_MONITOR_SECONDS ?= 2
 SESSION_ROS_DOMAIN_ID ?= 42
+SIM_BACKEND ?= gazebo
+LAB_IMAGE ?= ros2-launchpad-lab:dev
+SESSIONS ?= 2
+DURATION ?= 60
+PROFILE ?= idle
+SESSION_MEMORY ?= 2g
+SESSION_CPUS ?= 2
 
-.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-terminal test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 e2e-4a e2e-viewer viewer-capture test-robot stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
+.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-terminal test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 e2e-4a e2e-viewer viewer-capture test-robot test-fastsim load-test stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
 
 help:
 	@printf '%s\n' \
@@ -99,6 +106,8 @@ up: build build-app
 		SESSION_WARNING_SECONDS=$(SESSION_WARNING_SECONDS) \
 		SESSION_MONITOR_SECONDS=$(SESSION_MONITOR_SECONDS) \
 		SESSION_ROS_DOMAIN_ID=$(SESSION_ROS_DOMAIN_ID) \
+		SIM_BACKEND=$(SIM_BACKEND) SESSION_MEMORY=$(SESSION_MEMORY) \
+		SESSION_CPUS=$(SESSION_CPUS) \
 		$(COMPOSE) up -d api runtime
 	@set -e; \
 	for attempt in $$(seq 1 40); do \
@@ -147,6 +156,15 @@ viewer-capture: up e2e-image stage2a-clean
 
 test-robot:
 	python3 tests/integration/test_robot_constants.py -v
+
+test-fastsim: build
+	docker run --rm --entrypoint bash \
+		-v "$(CURDIR)/tests:/tests:ro" -v "$(CURDIR)/content:/content:ro" \
+		$(LAB_IMAGE) -lc \
+		'source /opt/ros/jazzy/setup.bash; LAUNCHPAD_ROOT=/ python3 /tests/integration/test_fastsim_core.py -v'
+
+load-test:
+	bash tests/integration/load_test.sh $(SESSIONS) $(DURATION) $(PROFILE)
 
 e2e-2a: up e2e-image stage2a-clean
 	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) npx playwright test stage2a.spec.ts
@@ -203,6 +221,8 @@ pilot-up: build build-app
 		SESSION_WARNING_SECONDS=$(SESSION_WARNING_SECONDS) \
 		SESSION_MONITOR_SECONDS=$(SESSION_MONITOR_SECONDS) \
 		SESSION_ROS_DOMAIN_ID=$(SESSION_ROS_DOMAIN_ID) \
+		SIM_BACKEND=$(SIM_BACKEND) SESSION_MEMORY=$(SESSION_MEMORY) \
+		SESSION_CPUS=$(SESSION_CPUS) \
 		SESSION_READ_ONLY=$(SESSION_READ_ONLY) \
 		SESSION_APPARMOR=$(SESSION_APPARMOR) \
 		PUBLIC_ORIGINS=$(PUBLIC_ORIGINS) \
