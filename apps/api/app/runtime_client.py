@@ -15,7 +15,7 @@ class RuntimeClient:
         self.client = httpx.AsyncClient(
             base_url=settings.runtime_url,
             headers={"Authorization": f"Bearer {settings.runtime_token}"},
-            timeout=20.0,
+            timeout=20.0 + 3.0 * settings.max_sessions,
         )
 
     async def close(self):

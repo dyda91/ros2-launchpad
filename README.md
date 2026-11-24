@@ -22,6 +22,9 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
 - **Etapa 4 local (4A–4D):** foco/Tab, condução repetida, curso v2 em seis
   módulos, visor largo com LiDAR e obstáculos — implementada
   e validada localmente.
+- **Simulador leve:** `SIM_BACKEND=fast` troca o Gazebo por um nó ROS 2 e
+  sustenta ~12 sessões em 4 núcleos (Gazebo: 2); ver
+  [`docs/fastsim-results.md`](docs/fastsim-results.md).
 - **Etapa 4E:** teste com iniciante e host externo — pendente.
 
 ## O que funciona
@@ -233,6 +236,7 @@ Detalhes:
 - [`docs/stage2b-results.md`](docs/stage2b-results.md)
 - [`docs/stage3-results.md`](docs/stage3-results.md)
 - [`docs/stage4-results.md`](docs/stage4-results.md)
+- [`docs/fastsim-results.md`](docs/fastsim-results.md)
 - [`docs/pilot-runbook.md`](docs/pilot-runbook.md)
 - [`docs/pilot-results.md`](docs/pilot-results.md)
 

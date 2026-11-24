@@ -4,11 +4,14 @@ import time
 import rclpy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
+from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from rclpy.time import Time
 from rosgraph_msgs.msg import Clock
 from sensor_msgs.msg import LaserScan
 
+from launchpad_sim.cmd_vel_watchdog import CmdVelWatchdog
 from launchpad_sim.fastsim_core import (
     LIDAR_RANGE_MAX,
     LIDAR_RANGE_MIN,
@@ -16,16 +19,14 @@ from launchpad_sim.fastsim_core import (
     FastWorld,
     load_map,
 )
+from launchpad_sim.mission_monitor import MissionMonitor
 
 
 class FastSim(Node):
-    def __init__(self):
-        super().__init__("fastsim")
+    def __init__(self, **kwargs):
+        super().__init__("fastsim", **kwargs)
         self.declare_parameter("map_file", "")
-        self.declare_parameter("input_topic", "/launchpad/_cmd_vel_safe")
-        self.declare_parameter("update_rate_hz", 25.0)
-        self.declare_parameter("scan_rate_hz", 10.0)
-        self.declare_parameter("clock_rate_hz", 5.0)
+        self.declare_parameter("update_rate_hz", 20.0)
         self.declare_parameter("spawn_x", 0.0)
         self.declare_parameter("spawn_y", 0.0)
         self.declare_parameter("spawn_yaw", 0.0)
@@ -41,35 +42,26 @@ class FastSim(Node):
             float(self.get_parameter("spawn_yaw").value),
         )
         rate = float(self.get_parameter("update_rate_hz").value)
-        scan_rate = float(self.get_parameter("scan_rate_hz").value)
-        clock_rate = float(self.get_parameter("clock_rate_hz").value)
+        self.ticks = 0
+        self.watchdog = None
         self.sim_time = 0.0
         self.last_wall = time.monotonic()
         self.command_linear = 0.0
         self.command_angular = 0.0
+        self.monitor = None
 
         self.odom_publisher = self.create_publisher(Odometry, "/odom", 10)
         self.scan_publisher = self.create_publisher(LaserScan, "/scan", 10)
         self.clock_publisher = self.create_publisher(Clock, "/clock", 10)
-        self.create_subscription(
-            Twist,
-            str(self.get_parameter("input_topic").value),
-            self.on_command,
-            10,
-        )
         self.create_timer(1.0 / rate, self.on_tick)
-        self.create_timer(1.0 / scan_rate, self.on_scan_tick)
-        self.create_timer(1.0 / clock_rate, self.on_clock_tick)
         self.get_logger().info(
             f"fastsim at {rate:.0f} Hz with {len(self.world.boxes)} boxes "
             f"and {len(self.world.circles)} cylinders"
         )
 
-    def on_command(self, message):
-        linear = message.linear.x
-        angular = message.angular.z
-        self.command_linear = linear if math.isfinite(linear) else 0.0
-        self.command_angular = angular if math.isfinite(angular) else 0.0
+    def publish(self, message):
+        self.command_linear = message.linear.x
+        self.command_angular = message.angular.z
 
     def stamp(self):
         return Time(seconds=self.sim_time).to_msg()
@@ -81,6 +73,9 @@ class FastSim(Node):
         if dt <= 0.0:
             return
         self.sim_time += dt
+        self.ticks += 1
+        if self.watchdog is not None:
+            self.watchdog.on_timer()
         robot = self.robot
         robot.step(dt, self.command_linear, self.command_angular)
         odom = Odometry()
@@ -94,6 +89,14 @@ class FastSim(Node):
         odom.twist.twist.linear.x = robot.linear
         odom.twist.twist.angular.z = robot.angular
         self.odom_publisher.publish(odom)
+        if self.monitor is not None:
+            self.monitor.update(robot.x, robot.y, robot.linear, robot.angular)
+        if self.ticks % 2 == 0:
+            self.on_scan_tick()
+            if self.monitor is not None:
+                self.monitor.on_timer()
+        if self.ticks % 4 == 0:
+            self.on_clock_tick()
 
     def on_clock_tick(self):
         clock = Clock()
@@ -116,13 +119,33 @@ class FastSim(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = FastSim()
+    light = {
+        "start_parameter_services": False,
+        "enable_rosout": False,
+    }
+    sim = FastSim(**light)
+    map_file = str(sim.get_parameter("map_file").value)
+    watchdog = CmdVelWatchdog(**light)
+    watchdog.redirect(sim)
+    watchdog.destroy_timer(watchdog.timer)
+    monitor = MissionMonitor(
+        parameter_overrides=[Parameter("map_file", value=map_file)], **light
+    )
+    monitor.detach_odometry()
+    monitor.destroy_timer(monitor.timer)
+    sim.monitor = monitor
+    sim.watchdog = watchdog
+    executor = SingleThreadedExecutor()
+    for node in (sim, watchdog, monitor):
+        executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
+        executor.shutdown()
+        for node in (sim, watchdog, monitor):
+            node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
 

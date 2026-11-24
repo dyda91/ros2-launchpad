@@ -121,6 +121,7 @@ def generate_launch_description():
                 "publish_rate_hz": 20.0,
             }
         ],
+        condition=use_gazebo,
     )
 
     odom_merge = Node(
@@ -158,6 +159,7 @@ def generate_launch_description():
                 "publish_rate_hz": 10.0,
             }
         ],
+        condition=use_gazebo,
     )
 
     return LaunchDescription(

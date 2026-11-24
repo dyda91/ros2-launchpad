@@ -9,7 +9,6 @@ import time
 
 import aiohttp
 
-PROMPT = b"\x1b]1337;LaunchpadPrompt\x07"
 ACTIONS = [
     ("topic_list", "ros2 topic list\n", 0.0),
     ("echo_once", "ros2 topic echo --once /odom\n", 0.0),
@@ -90,9 +89,9 @@ class SessionLoad:
     async def read_terminal(self, ws):
         async for message in ws:
             data = message.data
-            if isinstance(data, str):
-                data = data.encode("utf-8", "ignore")
-            if PROMPT in data:
+            if isinstance(data, bytes):
+                data = data.decode("utf-8", "ignore")
+            if data.startswith('{"type": "command"'):
                 self.prompt_event.set()
             if self.stop:
                 break

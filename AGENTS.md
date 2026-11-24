@@ -86,6 +86,10 @@ make e2e-4a                # regressão de Tab/foco/condução da 4A
 make e2e-viewer            # Playwright do visor: camadas, câmera e rastro
 make viewer-capture        # capturas e tempo de frame em docs/visor
 make test-robot            # dimensões do robô no visor x URDF
+make test-fastsim          # núcleo do simulador leve (cinemática, colisão, LiDAR)
+make test-agent-cdr        # leitura bruta de /odom e /scan no agente
+make load-test SESSIONS=8 DURATION=90 PROFILE=active   # carga com sessões simuladas
+make up SIM_BACKEND=fast MAX_SESSIONS=12 SESSION_MEMORY=512m SESSION_CPUS=1
 make test-mission          # schema e conteúdo da missão
 make test-api              # restart com falha e retry
 make test-session-capacity # capacidade, progresso, TTL e reconciliação
@@ -134,6 +138,16 @@ A missão usa o monitor ROS para confirmar a entrega: pare dentro da zona por
 2 s. A solução completa é opcional e fica na última dica; o progresso é por
 sessão na API, sobrevive a recarregar a página e reinicia no reinício da
 missão.
+
+## Backend do simulador
+
+`SIM_BACKEND=gazebo` (padrão) usa o Gazebo. `SIM_BACKEND=fast` usa o `fastsim`,
+um processo ROS 2 que substitui Gazebo, bridge e `odom_merge` e hospeda os
+nós `fastsim`, `cmd_vel_watchdog` e `mission_monitor`, com os mesmos tópicos
+(`/cmd_vel`, `/odom`, `/scan`, `/clock`). Ele é cinemático, em tempo real e sem
+ruído; o curso de 23 desafios passa nos dois. Neste servidor de 4 núcleos o
+modo rápido sustenta 12 sessões com folga (o Gazebo, 2); veja
+`docs/fastsim-results.md` e `specs/002-simulador-leve/spec.md`.
 
 ## Portão de verificação
 

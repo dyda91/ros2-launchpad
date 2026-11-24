@@ -6,8 +6,11 @@ from collections import deque
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
+
+from launchpad_agent.cdr import parse_odometry, parse_stamp
 
 
 def yaw_from_quaternion(quaternion):
@@ -29,15 +32,27 @@ class RosBridge:
         self._node = None
         self._thread = None
         rclpy.init(args=None)
-        self._node = Node("launchpad_session_agent")
-        self._node.create_subscription(Odometry, "/odom", self._on_odom, 10)
+        self._node = Node(
+            "launchpad_session_agent",
+            start_parameter_services=False,
+            enable_rosout=False,
+        )
+        self._raw_mission = None
+        self._raw_scan = None
+        self._scan_cache = None
+        self._node.create_subscription(
+            Odometry, "/odom", self._on_odom, 10, raw=True
+        )
         self._node.create_subscription(
             String,
             "/launchpad/mission_status",
             self._on_mission,
             10,
+            raw=True,
         )
-        self._node.create_subscription(LaserScan, "/scan", self._on_scan, 10)
+        self._node.create_subscription(
+            LaserScan, "/scan", self._on_scan, 10, raw=True
+        )
         self._thread = threading.Thread(
             target=self._spin,
             name="launchpad-ros-bridge",
@@ -51,47 +66,36 @@ class RosBridge:
         except Exception:
             pass
 
-    def _on_odom(self, message):
-        position = message.pose.pose.position
-        twist = message.twist.twist
-        values = [
-            position.x,
-            position.y,
-            message.pose.pose.orientation.x,
-            message.pose.pose.orientation.y,
-            message.pose.pose.orientation.z,
-            message.pose.pose.orientation.w,
-            twist.linear.x,
-            twist.linear.y,
-            twist.angular.z,
-        ]
+    def _on_odom(self, data):
+        try:
+            parsed = parse_odometry(bytes(data))
+        except Exception:
+            return
+        if parsed is None:
+            return
+        values = [parsed[key] for key in ("x", "y", "qx", "qy", "qz", "qw", "vx", "wz")]
         if not all(math.isfinite(value) for value in values):
             return
         payload = {
-            "x": position.x,
-            "y": position.y,
-            "yaw": yaw_from_quaternion(message.pose.pose.orientation),
-            "vx": twist.linear.x,
-            "wz": twist.angular.z,
-            "stamp": (
-                message.header.stamp.sec
-                + message.header.stamp.nanosec / 1_000_000_000.0
+            "x": parsed["x"],
+            "y": parsed["y"],
+            "yaw": math.atan2(
+                2.0 * (parsed["qw"] * parsed["qz"] + parsed["qx"] * parsed["qy"]),
+                1.0
+                - 2.0 * (parsed["qy"] * parsed["qy"] + parsed["qz"] * parsed["qz"]),
             ),
+            "vx": parsed["vx"],
+            "wz": parsed["wz"],
+            "stamp": parsed["stamp"],
         }
         with self._lock:
             self._latest = payload
-            self._poses.append(dict(payload))
+            self._poses.append(payload)
         self._ready.set()
 
-    def _on_mission(self, message):
-        try:
-            payload = json.loads(message.data)
-        except (TypeError, json.JSONDecodeError):
-            return
-        if not isinstance(payload, dict):
-            return
+    def _on_mission(self, data):
         with self._lock:
-            self._mission = payload
+            self._raw_mission = bytes(data)
 
     def ready(self):
         return self._ready.is_set()
@@ -102,7 +106,21 @@ class RosBridge:
 
     def latest_mission(self):
         with self._lock:
-            return dict(self._mission) if self._mission is not None else None
+            raw = self._raw_mission
+            cached = self._mission
+        if raw is None:
+            return None
+        if cached is not None and cached[0] is raw:
+            return dict(cached[1])
+        try:
+            payload = json.loads(deserialize_message(raw, String).data)
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        with self._lock:
+            self._mission = (raw, payload)
+        return dict(payload)
 
     def _nearest_pose(self, stamp):
         if not self._poses:
@@ -118,31 +136,41 @@ class RosBridge:
             "stamp": nearest["stamp"],
         }
 
-    def _on_scan(self, message):
-        ranges = [
-            round(value, 4) if math.isfinite(value) else None
-            for value in message.ranges
-        ]
-        stamp = (
-            message.header.stamp.sec
-            + message.header.stamp.nanosec / 1_000_000_000.0
-        )
+    def _on_scan(self, data):
+        raw = bytes(data)
+        try:
+            stamp = parse_stamp(raw)
+        except Exception:
+            return
         with self._lock:
-            payload = {
-                "frame_id": message.header.frame_id,
-                "angle_min": message.angle_min,
-                "angle_increment": message.angle_increment,
-                "range_min": message.range_min,
-                "range_max": message.range_max,
-                "ranges": ranges,
-                "stamp": stamp,
-                "pose": self._nearest_pose(stamp),
-            }
-            self._scan = payload
+            self._raw_scan = (raw, stamp, self._nearest_pose(stamp))
 
     def latest_scan(self):
         with self._lock:
-            return dict(self._scan) if self._scan is not None else None
+            entry = self._raw_scan
+            cached = self._scan_cache
+        if entry is None:
+            return None
+        if cached is not None and cached[0] is entry:
+            return dict(cached[1])
+        raw, stamp, pose = entry
+        message = deserialize_message(raw, LaserScan)
+        payload = {
+            "frame_id": message.header.frame_id,
+            "angle_min": message.angle_min,
+            "angle_increment": message.angle_increment,
+            "range_min": message.range_min,
+            "range_max": message.range_max,
+            "ranges": [
+                round(value, 4) if math.isfinite(value) else None
+                for value in message.ranges
+            ],
+            "stamp": stamp,
+            "pose": pose,
+        }
+        with self._lock:
+            self._scan_cache = (entry, payload)
+        return dict(payload)
 
     def close(self):
         if self._closed:

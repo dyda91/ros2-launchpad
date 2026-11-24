@@ -34,7 +34,7 @@ SAMPLER=$!
 trap 'kill $SAMPLER 2>/dev/null || true' EXIT
 
 START="$(date +%s)"
-docker run --rm --network host \
+docker run --rm --network host --user "$(id -u):$(id -g)" \
   -v "$ROOT/tests:/tests:ro" -v "$OUT_DIR:/out" \
   --entrypoint python ros2-launchpad-api:dev \
   /tests/integration/load_sessions.py \
