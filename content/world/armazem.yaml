@@ -35,3 +35,18 @@ obstacles:
     type: box
     center: [1.0, 4.2]
     size: [1.2, 0.6, 1.0]
+  - id: rack_norte
+    type: box
+    kind: rack
+    center: [4.7, 5.1]
+    size: [3.4, 0.5, 1.4]
+  - id: rack_leste
+    type: box
+    kind: rack
+    center: [7.0, 1.2]
+    size: [0.5, 2.4, 1.4]
+  - id: rack_sul
+    type: box
+    kind: rack
+    center: [5.15, -0.2]
+    size: [2.5, 0.5, 1.4]

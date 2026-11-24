@@ -261,9 +261,10 @@ class PilotStore:
             except OSError:
                 pass
 
-    def progress_events(self, session_tag, old, new, step_ids):
+    def progress_events(self, session_tag, old, new, step_ids, tasks=None):
         old = old or {}
         new = new or {}
+        tasks = tasks or []
         old_step = old.get("stepIndex")
         new_step = new.get("stepIndex")
         step_id = (
@@ -271,6 +272,25 @@ class PilotStore:
             if isinstance(new_step, int) and 0 <= new_step < len(step_ids)
             else None
         )
+        is_v3 = new.get("version") == 3
+        new_task = new.get("taskIndex") if is_v3 else None
+        task_info = {}
+        if (
+            isinstance(new_step, int)
+            and isinstance(new_task, int)
+            and 0 <= new_step < len(tasks)
+            and 0 <= new_task < len(tasks[new_step])
+        ):
+            task_info = tasks[new_step][new_task]
+        task_id = task_info.get("id")
+        same_position = (
+            old.get("version") == 3
+            and old_step == new_step
+            and old.get("taskIndex") == new_task
+        )
+        fields = {"step": step_id, "step_index": new_step}
+        if is_v3:
+            fields.update(task=task_id, task_index=new_task)
         if new_step != old_step:
             self.emit(
                 "step_entered",
@@ -278,29 +298,33 @@ class PilotStore:
                 step=step_id,
                 step_index=new_step,
             )
-        for key, event in (
-            ("quizDone", "quiz_correct"),
-            ("quizWrong", "quiz_wrong"),
-            ("predictionDone", "prediction_correct"),
-            ("predictionWrong", "prediction_wrong"),
-            ("motionDone", "motion_done"),
+        if is_v3 and not same_position:
+            self.emit("task_entered", session_tag, **fields)
+        if is_v3 and new.get("taskDone") and not (
+            same_position and old.get("taskDone")
         ):
-            if new.get(key) and not old.get(key):
-                self.emit(event, session_tag, step=step_id, step_index=new_step)
-        old_hints = old.get("hintsShown")
+            self.emit("task_done", session_tag, kind=task_info.get("kind"), **fields)
+            if task_info.get("kind") == "quiz":
+                self.emit("quiz_correct", session_tag, **fields)
+        if is_v3 and new.get("answerWrong") and not (
+            same_position and old.get("answerWrong")
+        ):
+            event = "quiz_wrong" if task_info.get("kind") == "quiz" else "answer_wrong"
+            self.emit(event, session_tag, **fields)
+        if not is_v3:
+            for key, event in (
+                ("quizDone", "quiz_correct"),
+                ("quizWrong", "quiz_wrong"),
+                ("predictionDone", "prediction_correct"),
+                ("predictionWrong", "prediction_wrong"),
+                ("motionDone", "motion_done"),
+            ):
+                if new.get(key) and not old.get(key):
+                    self.emit(event, session_tag, **fields)
+        old_hints = old.get("hintsShown") if (same_position or not is_v3) else 0
         new_hints = new.get("hintsShown")
         if isinstance(new_hints, int) and new_hints > (old_hints or 0):
-            self.emit(
-                "hint_shown",
-                session_tag,
-                step=step_id,
-                step_index=new_step,
-                hints=new_hints,
-            )
-        if new.get("solutionVisible") and not old.get("solutionVisible"):
-            self.emit(
-                "solution_shown",
-                session_tag,
-                step=step_id,
-                step_index=new_step,
-            )
+            self.emit("hint_shown", session_tag, hints=new_hints, **fields)
+        old_solution = old.get("solutionVisible") if (same_position or not is_v3) else False
+        if new.get("solutionVisible") and not old_solution:
+            self.emit("solution_shown", session_tag, **fields)

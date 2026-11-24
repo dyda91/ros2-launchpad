@@ -17,6 +17,9 @@ class Settings:
     session_ulimit_nofile: int
     session_ulimit_core_mb: int
     session_ulimit_fsize_mb: int
+    sim_backend: str
+    session_memory: str
+    session_cpus: float
 
     @classmethod
     def from_env(cls):
@@ -44,4 +47,7 @@ class Settings:
             session_ulimit_fsize_mb=int(
                 os.environ.get("SESSION_ULIMIT_FSIZE_MB", "64")
             ),
+            sim_backend=os.environ.get("SIM_BACKEND", "gazebo"),
+            session_memory=os.environ.get("SESSION_MEMORY", "2g"),
+            session_cpus=float(os.environ.get("SESSION_CPUS", "2")),
         )

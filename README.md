@@ -22,6 +22,9 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
 - **Etapa 4 local (4A–4D):** foco/Tab, condução repetida, curso v2 em seis
   módulos, visor largo com LiDAR e obstáculos — implementada
   e validada localmente.
+- **Simulador leve:** `SIM_BACKEND=fast` troca o Gazebo por um nó ROS 2 e
+  sustenta ~12 sessões em 4 núcleos (Gazebo: 2); ver
+  [`docs/fastsim-results.md`](docs/fastsim-results.md).
 - **Etapa 4E:** teste com iniciante e host externo — pendente.
 
 ## O que funciona
@@ -37,11 +40,13 @@ sessão local, recebe um robô em um armazém, um terminal Linux real e um visor
   exercícios e dicas graduais.
 - Tab real no xterm para caminhos e subcomandos ROS 2; `Ctrl+Shift+E` sai do
   terminal e leva o foco à aula.
-- Visor dividido em planta 2D e visão em primeira pessoa do robô, com
-  orientação, zoom, recentralização, legenda e camada LiDAR.
+- Visor único visto de cima, no estilo RViz: armazém com piso, racks e
+  pallets, robô fiel ao URDF, TF, rastro, vetor de velocidade, LiDAR por
+  distância, painel de camadas, zoom, pan e seguir robô.
 - Terminal xterm.js conectado a um PTY bash real dentro do container da
   sessão.
-- Visor Canvas 2D com o mesmo `map.json` do simulador e pose real de `/odom`.
+- Visor Canvas 2D com o mesmo `map.json` do simulador e pose real de `/odom`;
+  nada desenhado como obstáculo deixa de existir no Gazebo.
 - Curso guiado em seis módulos, com ação/observação/dica e conteúdo em YAML.
 - Validação da entrega pelo `mission_monitor` real; passar pela zona em
   movimento não conclui.
@@ -194,7 +199,7 @@ make test-pilot  # convites, controle, rate limit e eventos
 make pilot-up    # API/runtime com convite e hardening
 make pilot-down  # encerra o piloto e remove as sessões
 make pilot-admin # CLI de convites/controle
-make e2e         # Playwright 2A + curso de seis módulos
+make e2e         # Playwright 2A + curso prático de nove módulos
 make e2e-4a      # Tab, foco, condução, Ctrl+C e comandos ROS
 make stage3      # Etapa 1 + conteúdo/API + aplicação + Playwright
 ```
@@ -231,6 +236,7 @@ Detalhes:
 - [`docs/stage2b-results.md`](docs/stage2b-results.md)
 - [`docs/stage3-results.md`](docs/stage3-results.md)
 - [`docs/stage4-results.md`](docs/stage4-results.md)
+- [`docs/fastsim-results.md`](docs/fastsim-results.md)
 - [`docs/pilot-runbook.md`](docs/pilot-runbook.md)
 - [`docs/pilot-results.md`](docs/pilot-results.md)
 
@@ -319,7 +325,7 @@ make measure-2b  # medição de duas sessões
 make stage3      # aceite da missão Primeiro Turno
 make e2e         # Playwright completo (2A + curso)
 make e2e-4a      # regressão de Tab/condução/comandos ROS
-make test-mission # conteúdo do curso de seis módulos
+make test-mission # conteúdo do curso prático de nove módulos
 make test-api    # restart com falha e retry
 make test-session-capacity # capacidade, progresso, TTL e reconciliação
 make lab-up      # laboratório manual

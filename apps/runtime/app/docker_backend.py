@@ -118,6 +118,7 @@ class DockerBackend:
                 "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp",
                 "GZ_IP": "127.0.0.1",
                 "GZ_PARTITION": f"launchpad_{session_id[:12]}",
+                "SIM_BACKEND": self.settings.sim_backend,
                 "SESSION_ID": session_id,
                 "AGENT_TOKEN": agent_token,
                 "AGENT_SOCKET": "/run/agent/agent.sock",
@@ -191,8 +192,8 @@ class DockerBackend:
                         host_session_dir: {"bind": "/run/agent", "mode": "rw"}
                     },
                     network_mode="none",
-                    mem_limit="2g",
-                    nano_cpus=2_000_000_000,
+                    mem_limit=self.settings.session_memory,
+                    nano_cpus=int(self.settings.session_cpus * 1_000_000_000),
                     pids_limit=256,
                     shm_size="512m",
                     read_only=self.settings.session_read_only,

@@ -198,4 +198,25 @@ layout 1600 / 1280 / 800 px          três colunas / desafio acima / empilhado
 | T5.7 | concluído | 4B: aula à esquerda em ~40%, visor e terminal à direita | `stage2a.spec.ts` e `make e2e` |
 | T5.8 | concluído | 4C: curso v2 com seis módulos e Tab validado | `test-mission` 6/6; `stage4-driving` |
 | T5.9 | concluído | 4D: LiDAR real, sensores headless e obstáculos | `/scan` real; camada no Canvas |
+| T5.12 | concluído | 4F: curso v3, nove módulos e 23 desafios verificáveis (command, answer, quiz, pose, scan, delivery) | `test-mission` 22/22; `make e2e-3` 3/3 com os 23 desafios no simulador real |
+| T5.13 | concluído | 4F: progresso v3 e eventos `task_entered`/`task_done`/`answer_wrong` sem comandos nem respostas | `test-session-capacity`, `test-pilot` |
+| T5.14 | concluído | 4F: specs e2e adaptados ao curso v3 (`course-helpers.ts`) | `make e2e` 4/4, `make e2e-4a` 8/8, `make e2e-2b` 2/2 |
 | T5.11 | pendente | 4E: teste com iniciante e host externo | depende de pessoa/host |
+
+## Fase 6 — Simulador leve (`fastsim`)
+
+Especificação em `specs/002-simulador-leve/spec.md`; resultados em
+`docs/fastsim-results.md`.
+
+| ID | Status | Tarefa | Verificação executada |
+|---|---|---|---|
+| T6.1 | concluído | Medir a linha de base do Gazebo por processo | ~190% de CPU e 490 MiB por sessão; `gz sim` ~90% |
+| T6.2 | concluído | Núcleo cinemático, colisão e LiDAR 2D (`fastsim_core.py`) | `make test-fastsim` 15/15 |
+| T6.3 | concluído | Nó `fastsim` com watchdog e monitor no mesmo processo; `sim_backend` no launch | tópicos, tipos e `frame_id` iguais; 20/10/5 Hz |
+| T6.4 | concluído | `SIM_BACKEND`, `SESSION_MEMORY` e `SESSION_CPUS` no runtime, compose e Makefile | sessão sobe em ~10 s |
+| T6.5 | concluído | Agente com leitura bruta de `/odom`, `/scan` e status | `make test-agent-cdr` 3/3 |
+| T6.6 | concluído | Curso de 23 desafios no backend rápido | `make e2e-3 SIM_BACKEND=fast` 3/3 |
+| T6.7 | concluído | Ferramenta de carga e limite de sessões | `make load-test`; 12 sessões com folga neste host |
+| T6.8 | concluído | Timeout do cliente do runtime proporcional a `MAX_SESSIONS` | 12 criações simultâneas sem 503 |
+| T6.9 | pendente | Estreitar o lock do runtime para criar sessões em paralelo | — |
+| T6.10 | pendente | Medir em host de produção | depende do host |

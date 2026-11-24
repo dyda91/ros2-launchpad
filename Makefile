@@ -17,8 +17,15 @@ SESSION_IDLE_SECONDS ?= 600
 SESSION_WARNING_SECONDS ?= 120
 SESSION_MONITOR_SECONDS ?= 2
 SESSION_ROS_DOMAIN_ID ?= 42
+SIM_BACKEND ?= gazebo
+LAB_IMAGE ?= ros2-launchpad-lab:dev
+SESSIONS ?= 2
+DURATION ?= 60
+PROFILE ?= idle
+SESSION_MEMORY ?= 2g
+SESSION_CPUS ?= 2
 
-.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 e2e-4a stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
+.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-terminal test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 e2e-4a e2e-viewer viewer-capture test-robot test-fastsim test-agent-cdr load-test stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
 
 help:
 	@printf '%s\n' \
@@ -29,12 +36,16 @@ help:
 		'lab-logs    acompanha logs do container' \
 		'world       gera o SDF e o mapa a partir de content/world/armazem.yaml' \
 		'test-world  executa testes de geometria do mundo' \
+		'test-terminal testa a detecção de comandos do terminal' \
 		'stage1      executa o aceite completo da Etapa 1' \
 		'up          constrói e sobe API + runtime em 127.0.0.1:8080' \
 		'down        para aplicação e remove a sessão' \
 		'session-down força a remoção da sessão' \
 		'e2e         executa Playwright contra a aplicação local' \
 		'e2e-4a      executa a regressão de condução repetida da 4A' \
+		'e2e-viewer  executa o Playwright do visor (camadas, câmera e rastro)' \
+		'viewer-capture gera capturas e o tempo de frame em docs/visor' \
+		'test-robot  confere as dimensões do robô no visor contra o URDF' \
 		'test-mission valida o conteúdo da missão' \
 		'test-api    testa falha/retry do restart da sessão' \
 		'stage2a     executa o aceite completo da Etapa 2A' \
@@ -78,7 +89,11 @@ test-world: lab-up
 	$(COMPOSE) exec -T $(LAB) bash -lc \
 		'LAUNCHPAD_ROOT=/ python3 /tests/integration/test_world_geometry.py -v'
 
-stage1: lab-up test-world
+test-terminal: lab-up
+	$(COMPOSE) exec -T $(LAB) bash -lc \
+		'python3 /tests/integration/test_command_markers.py -v'
+
+stage1: lab-up test-world test-terminal
 	bash tests/integration/stage1_acceptance.sh
 
 up: build build-app
@@ -91,6 +106,8 @@ up: build build-app
 		SESSION_WARNING_SECONDS=$(SESSION_WARNING_SECONDS) \
 		SESSION_MONITOR_SECONDS=$(SESSION_MONITOR_SECONDS) \
 		SESSION_ROS_DOMAIN_ID=$(SESSION_ROS_DOMAIN_ID) \
+		SIM_BACKEND=$(SIM_BACKEND) SESSION_MEMORY=$(SESSION_MEMORY) \
+		SESSION_CPUS=$(SESSION_CPUS) \
 		$(COMPOSE) up -d api runtime
 	@set -e; \
 	for attempt in $$(seq 1 40); do \
@@ -125,7 +142,33 @@ e2e-image:
 
 e2e: up e2e-image stage2a-clean
 	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) \
-		npx playwright test stage2a.spec.ts stage3.spec.ts
+		npx playwright test stage2a.spec.ts stage3.spec.ts viewer.spec.ts
+
+e2e-viewer: up e2e-image stage2a-clean
+	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) \
+		npx playwright test viewer.spec.ts
+
+viewer-capture: up e2e-image stage2a-clean
+	mkdir -p docs/visor
+	docker run --rm --network host --ipc host --shm-size=1g \
+		-v "$(CURDIR)/docs/visor:/out" -e CAPTURE_DIR=/out $(E2E_IMAGE) \
+		npx playwright test viewer-capture.spec.ts
+
+test-robot:
+	python3 tests/integration/test_robot_constants.py -v
+
+test-fastsim: build
+	docker run --rm --entrypoint bash \
+		-v "$(CURDIR)/tests:/tests:ro" -v "$(CURDIR)/content:/content:ro" \
+		$(LAB_IMAGE) -lc \
+		'source /opt/ros/jazzy/setup.bash; LAUNCHPAD_ROOT=/ python3 /tests/integration/test_fastsim_core.py -v'
+
+test-agent-cdr: build
+	docker run --rm --entrypoint bash -v "$(CURDIR):/repo:ro" $(LAB_IMAGE) -lc \
+		'source /opt/ros/jazzy/setup.bash; LAUNCHPAD_ROOT=/repo python3 /repo/tests/integration/test_agent_cdr.py -v'
+
+load-test:
+	bash tests/integration/load_test.sh $(SESSIONS) $(DURATION) $(PROFILE)
 
 e2e-2a: up e2e-image stage2a-clean
 	docker run --rm --network host --ipc host --shm-size=1g $(E2E_IMAGE) npx playwright test stage2a.spec.ts
@@ -182,6 +225,8 @@ pilot-up: build build-app
 		SESSION_WARNING_SECONDS=$(SESSION_WARNING_SECONDS) \
 		SESSION_MONITOR_SECONDS=$(SESSION_MONITOR_SECONDS) \
 		SESSION_ROS_DOMAIN_ID=$(SESSION_ROS_DOMAIN_ID) \
+		SIM_BACKEND=$(SIM_BACKEND) SESSION_MEMORY=$(SESSION_MEMORY) \
+		SESSION_CPUS=$(SESSION_CPUS) \
 		SESSION_READ_ONLY=$(SESSION_READ_ONLY) \
 		SESSION_APPARMOR=$(SESSION_APPARMOR) \
 		PUBLIC_ORIGINS=$(PUBLIC_ORIGINS) \
@@ -301,6 +346,9 @@ test-mission: build-app
 		-v "$(CURDIR)/content:/content:ro" \
 		-v "$(CURDIR)/tests:/tests:ro" \
 		-v "$(CURDIR)/apps/api:/app" \
+		-v "$(CURDIR):/repo:ro" \
+		-e LAUNCHPAD_REPO=/repo \
+		-e MISSION_FILE=/content/missions/primeiro-turno.yaml \
 		-w /app ros2-launchpad-api:dev \
 		python /tests/integration/test_mission_content.py -v
 
@@ -313,6 +361,8 @@ test-api: build-app
 
 test-session-capacity: build-app
 	docker run --rm \
+		-v "$(CURDIR)/content:/content:ro" \
+		-e MISSION_FILE=/content/missions/primeiro-turno.yaml \
 		-v "$(CURDIR)/tests:/tests:ro" \
 		-v "$(CURDIR)/apps/api:/app" \
 		-w /app ros2-launchpad-api:dev \

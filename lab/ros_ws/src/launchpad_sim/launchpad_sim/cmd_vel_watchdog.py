@@ -6,8 +6,8 @@ from rclpy.node import Node
 
 
 class CmdVelWatchdog(Node):
-    def __init__(self):
-        super().__init__("cmd_vel_watchdog")
+    def __init__(self, **kwargs):
+        super().__init__("cmd_vel_watchdog", **kwargs)
         self.declare_parameter("input_topic", "/cmd_vel")
         self.declare_parameter("output_topic", "/launchpad/_cmd_vel_safe")
         self.declare_parameter("timeout_seconds", 0.5)
@@ -38,6 +38,10 @@ class CmdVelWatchdog(Node):
             f"watching {self.input_topic} and publishing {self.output_topic} "
             f"with timeout {self.timeout:.2f}s"
         )
+
+    def redirect(self, sink):
+        self.destroy_publisher(self.publisher)
+        self.publisher = sink
 
     def on_command(self, message):
         self.last_command = self.sanitize(message)

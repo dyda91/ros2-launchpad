@@ -1,22 +1,15 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
-type Question = {
-  answerIndex: number;
-  options: string[];
-};
-
-type Step = {
-  id: string;
-  question?: Question;
-};
-
-type Mission = {
-  steps: Step[];
-};
-
-async function missionContent(page: Page) {
-  const response = await page.request.get("/api/mission");
-  return (await response.json()) as Mission;
+async function finishFirstTask(page: Page) {
+  const insert = page.getByTestId("insert-command");
+  await expect(insert).toBeEnabled({ timeout: 20_000 });
+  await insert.click();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("task-status")).toHaveAttribute(
+    "data-done",
+    "true",
+    { timeout: 20_000 }
+  );
 }
 
 async function startPage(page: Page) {
@@ -96,20 +89,20 @@ test("duas sessões, terceira cheia, progresso, reload e reconexão", async ({
     await expect(pageC.getByText("As duas vagas estão em uso")).toBeVisible();
     await contextC.close();
 
-    const mission = await missionContent(pageA);
-    const firstAnswer = mission.steps[0].question!.answerIndex;
-    await pageB.getByTestId("quiz-option").nth(firstAnswer).click();
-    await expect(pageB.getByTestId("next-step")).toBeVisible();
+    await pageB.getByTestId("focus-terminal").click();
+    await finishFirstTask(pageB);
+    await expect(pageB.getByTestId("next-task")).toBeVisible();
     await touch(pageB);
-    await pageA.getByTestId("quiz-option").nth(firstAnswer).click();
-    await pageA.getByTestId("next-step").click();
+    await pageA.getByTestId("focus-terminal").click();
+    await finishFirstTask(pageA);
+    await pageA.getByTestId("next-task").click();
     await expect(pageA.getByTestId("mission-step")).toHaveAttribute(
-      "data-step",
-      "comunicacao"
+      "data-task",
+      "terminal-ls-ros"
     );
     await expect(pageB.getByTestId("mission-step")).toHaveAttribute(
-      "data-step",
-      "terminal"
+      "data-task",
+      "terminal-pwd"
     );
     await touch(pageB);
 
@@ -129,8 +122,8 @@ test("duas sessões, terceira cheia, progresso, reload e reconexão", async ({
     );
     expect(await sessionTag(pageA)).toBe(tagA);
     await expect(pageA.getByTestId("mission-step")).toHaveAttribute(
-      "data-step",
-      "comunicacao",
+      "data-task",
+      "terminal-ls-ros",
       { timeout: 20_000 }
     );
     await expect(terminalA).toContainText(marker, { timeout: 20_000 });
@@ -168,8 +161,8 @@ test("duas sessões, terceira cheia, progresso, reload e reconexão", async ({
     );
     expect(await sessionTag(pageA)).toBe(tagA);
     await expect(pageA.getByTestId("mission-step")).toHaveAttribute(
-      "data-step",
-      "terminal"
+      "data-task",
+      "terminal-pwd"
     );
     await expect
       .poll(

@@ -30,6 +30,7 @@ lab/image/agent/                            agente aiohttp, PTY, launch e /odom
 apps/api/                                   FastAPI, sessão e proxy UDS
 apps/runtime/                               controlador do Docker
 apps/web/                                   React + TypeScript + Vite
+apps/web/src/viewer/                        camadas do visor (estática, dinâmica, LiDAR)
 specs/001-primeiro-turno/                   spec, plan e tasks
 tests/integration/                          aceite real, piloto e staging
 tests/e2e/                                  Playwright 2A, 2B, missão, piloto e host
@@ -82,6 +83,13 @@ make measure-2b            # mede duas sessões simultâneas
 make stage3                # Etapa 1 + conteúdo/API + aplicação + Playwright
 make e2e                   # Playwright completo (2A + missão)
 make e2e-4a                # regressão de Tab/foco/condução da 4A
+make e2e-viewer            # Playwright do visor: camadas, câmera e rastro
+make viewer-capture        # capturas e tempo de frame em docs/visor
+make test-robot            # dimensões do robô no visor x URDF
+make test-fastsim          # núcleo do simulador leve (cinemática, colisão, LiDAR)
+make test-agent-cdr        # leitura bruta de /odom e /scan no agente
+make load-test SESSIONS=8 DURATION=90 PROFILE=active   # carga com sessões simuladas
+make up SIM_BACKEND=fast MAX_SESSIONS=12 SESSION_MEMORY=512m SESSION_CPUS=1
 make test-mission          # schema e conteúdo da missão
 make test-api              # restart com falha e retry
 make test-session-capacity # capacidade, progresso, TTL e reconciliação
@@ -117,7 +125,7 @@ ros2 launch launchpad_bringup lab.launch.py
 ```
 
 Dentro do terminal do navegador, o ambiente já está carregado. O curso guia
-seis módulos; os comandos abaixo são a referência da Etapa 1:
+nove módulos e 23 desafios práticos; os comandos abaixo são a referência da Etapa 1:
 
 ```bash
 ros2 topic list
@@ -130,6 +138,16 @@ A missão usa o monitor ROS para confirmar a entrega: pare dentro da zona por
 2 s. A solução completa é opcional e fica na última dica; o progresso é por
 sessão na API, sobrevive a recarregar a página e reinicia no reinício da
 missão.
+
+## Backend do simulador
+
+`SIM_BACKEND=gazebo` (padrão) usa o Gazebo. `SIM_BACKEND=fast` usa o `fastsim`,
+um processo ROS 2 que substitui Gazebo, bridge e `odom_merge` e hospeda os
+nós `fastsim`, `cmd_vel_watchdog` e `mission_monitor`, com os mesmos tópicos
+(`/cmd_vel`, `/odom`, `/scan`, `/clock`). Ele é cinemático, em tempo real e sem
+ruído; o curso de 23 desafios passa nos dois. Neste servidor de 4 núcleos o
+modo rápido sustenta 12 sessões com folga (o Gazebo, 2); veja
+`docs/fastsim-results.md` e `specs/002-simulador-leve/spec.md`.
 
 ## Portão de verificação
 
@@ -209,10 +227,17 @@ o que passou e o que permanece pendente.
   validação em domínio público continua pendente.
 - O progresso da missão sobrevive a recarregar a página, mas reinicia no
   reinício da missão e ao reiniciar API/runtime.
-- O visor é dividido em planta 2D e visão em primeira pessoa por raycasting
-  do mapa, sem câmera Gazebo.
+- O visor é um único Canvas 2D visto de cima, no estilo RViz simulado: piso,
+  paredes, pallets, racks e pilar desenhados a partir do `map.json`, robô fiel
+  ao URDF, TF, rastro, vetor de velocidade e LiDAR por distância. Não há
+  visão em primeira pessoa nem câmera Gazebo.
+- O armazém tem três racks reais (`rack_norte`, `rack_leste`, `rack_sul`) em
+  `armazem.yaml`, com `kind: rack`; só o piso recebe decoração (faixas, zebrado,
+  juntas), nada pintado parece obstáculo se não existir no Gazebo.
+- As dimensões do robô no visor ficam em `apps/web/src/robot.ts` e são
+  conferidas contra o URDF por `make test-robot`.
 - O terminal tem foco explícito ao inserir, botão **Focar terminal**,
-  **Ctrl+C** e **Ctrl+Shift+E**; Tab, condução, LiDAR e o curso de seis módulos
+  **Ctrl+C** e **Ctrl+Shift+E**; Tab, condução, LiDAR e o curso prático de nove módulos
   são cobertos por `stage4-driving.spec.ts`, `stage3.spec.ts` e
   `stage2a.spec.ts`.
 - A solução completa da missão é opcional e calibrada para a pose após o

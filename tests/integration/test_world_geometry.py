@@ -63,7 +63,11 @@ class WorldGeometryTest(unittest.TestCase):
         self.assertEqual(data["zone"]["id"], "coleta")
         self.assertEqual(data["zone"]["bounds"]["min"], [5.1, 2.5])
         self.assertEqual(data["zone"]["bounds"]["max"], [6.5, 3.9])
-        self.assertEqual(len(data["obstacles"]), 3)
+        self.assertEqual(len(data["obstacles"]), 6)
+        kinds = {item["id"]: item["kind"] for item in data["obstacles"]}
+        self.assertEqual(kinds["caixa_a"], "crate")
+        self.assertEqual(kinds["coluna_b"], "pillar")
+        self.assertEqual(kinds["rack_norte"], "rack")
 
     def test_zone_is_inside_warehouse(self):
         data = load_map()

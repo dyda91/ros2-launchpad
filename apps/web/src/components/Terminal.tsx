@@ -9,7 +9,7 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 
 import { wsUrl } from "../lib/api";
-import type { InsertResult, TerminalState } from "../types";
+import type { InsertResult, TerminalCommand, TerminalState } from "../types";
 
 export interface TerminalHandle {
   insert: (text: string) => void;
@@ -22,20 +22,23 @@ interface TerminalProps {
   wsPath: string;
   onTerminalState?: (state: TerminalState) => void;
   onInsertResult?: (result: InsertResult) => void;
+  onCommand?: (command: TerminalCommand) => void;
 }
 
 const Terminal = forwardRef<TerminalHandle, TerminalProps>(
-  ({ wsPath, onTerminalState, onInsertResult }, ref) => {
+  ({ wsPath, onTerminalState, onInsertResult, onCommand }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const terminalRef = useRef<XTerm | null>(null);
     const socketRef = useRef<WebSocket | null>(null);
     const terminalStateCallback = useRef(onTerminalState);
     const insertResultCallback = useRef(onInsertResult);
+    const commandCallback = useRef(onCommand);
 
     useEffect(() => {
       terminalStateCallback.current = onTerminalState;
       insertResultCallback.current = onInsertResult;
-    }, [onTerminalState, onInsertResult]);
+      commandCallback.current = onCommand;
+    }, [onTerminalState, onInsertResult, onCommand]);
 
     useImperativeHandle(
       ref,
@@ -160,6 +163,13 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(
                 prompt: Boolean(message.prompt),
                 lineEmpty: Boolean(message.lineEmpty),
                 running: Boolean(message.running)
+              });
+            } else if (message.type === "command") {
+              commandCallback.current?.({
+                seq: Number(message.seq ?? 0),
+                command: String(message.command ?? ""),
+                exit: Number(message.exit ?? 0),
+                receivedAt: Date.now()
               });
             } else if (message.type === "insert_result") {
               insertResultCallback.current?.({

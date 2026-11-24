@@ -11,6 +11,7 @@ from .runtime_client import RuntimeClient, RuntimeFull, RuntimeUnavailable
 
 ACTIVE_STATES = {"preparing", "ready"}
 ERROR_GRACE_SECONDS = 300.0
+LEGACY_MAX_STEP = 5
 EXPIRED_GRACE_SECONDS = 900.0
 
 
@@ -43,6 +44,7 @@ class SessionManager:
         self._lock = asyncio.Lock()
         self._maintenance_task = None
         self._closed = False
+        self.mission_shape = None
 
     async def start(self):
         for attempt in range(60):
@@ -282,40 +284,74 @@ class SessionManager:
             self._touch_locked(session)
             return True
 
+    def configure_mission(self, task_counts):
+        counts = [int(count) for count in task_counts]
+        if not counts or any(count < 1 for count in counts):
+            raise ValueError("mission shape must list positive task counts")
+        self.mission_shape = counts
+
+    def _max_step(self):
+        shape = self.mission_shape
+        return len(shape) - 1 if shape else LEGACY_MAX_STEP
+
+    @staticmethod
+    def _is_int(value):
+        return isinstance(value, int) and not isinstance(value, bool)
+
+    @staticmethod
+    def _is_number(value):
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+    def _valid_pose(self, value):
+        if value is None:
+            return True
+        if not isinstance(value, dict):
+            return False
+        return all(self._is_number(value.get(key)) for key in ("x", "y", "yaw"))
+
     def _valid_progress(self, progress):
         if not isinstance(progress, dict):
             return False
         if len(json.dumps(progress)) > 16384:
             return False
         step = progress.get("stepIndex")
-        if not isinstance(step, int) or step < 0 or step > 5:
+        if not self._is_int(step) or step < 0 or step > self._max_step():
             return False
-        for key in (
-            "selected",
-            "predictionSelected",
-        ):
+        for key in ("selected", "predictionSelected"):
             value = progress.get(key)
-            if value is not None and not isinstance(value, int):
+            if value is not None and not self._is_int(value):
                 return False
         for key in (
             "quizDone",
+            "quizWrong",
             "predictionDone",
+            "predictionWrong",
             "motionDone",
             "solutionVisible",
+            "taskDone",
+            "answerWrong",
         ):
             value = progress.get(key)
             if value is not None and not isinstance(value, bool):
                 return False
         hints = progress.get("hintsShown")
-        if hints is not None and (not isinstance(hints, int) or hints < 0):
+        if hints is not None and (not self._is_int(hints) or hints < 0 or hints > 64):
             return False
-        motion_start = progress.get("motionStart")
-        if motion_start is not None:
-            if not isinstance(motion_start, dict):
-                return False
-            for key in ("x", "y", "yaw"):
-                if not isinstance(motion_start.get(key), (int, float)):
-                    return False
+        if not self._valid_pose(progress.get("motionStart")):
+            return False
+        if not self._valid_pose(progress.get("taskStart")):
+            return False
+        version = progress.get("version")
+        if version is None:
+            return "taskIndex" not in progress
+        if version != 3:
+            return False
+        task = progress.get("taskIndex")
+        if not self._is_int(task) or task < 0:
+            return False
+        shape = self.mission_shape
+        if shape and task >= shape[step]:
+            return False
         return True
 
     async def restart(self, cookie_id):

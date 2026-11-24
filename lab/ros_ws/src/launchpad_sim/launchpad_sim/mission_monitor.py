@@ -8,8 +8,8 @@ from std_msgs.msg import String
 
 
 class MissionMonitor(Node):
-    def __init__(self):
-        super().__init__("mission_monitor")
+    def __init__(self, **kwargs):
+        super().__init__("mission_monitor", **kwargs)
         self.declare_parameter("map_file", "")
         self.declare_parameter("hold_seconds", 2.0)
         self.declare_parameter("linear_speed_threshold", 0.02)
@@ -64,9 +64,16 @@ class MissionMonitor(Node):
     def on_odometry(self, message):
         position = message.pose.pose.position
         twist = message.twist.twist
-        self.pose = (position.x, position.y)
-        self.speed = math.hypot(twist.linear.x, twist.linear.y)
-        self.angular_speed = abs(twist.angular.z)
+        self.update(position.x, position.y, twist.linear.x, twist.angular.z)
+
+    def update(self, x, y, linear, angular):
+        self.pose = (x, y)
+        self.speed = abs(linear)
+        self.angular_speed = abs(angular)
+
+    def detach_odometry(self):
+        self.destroy_subscription(self.subscription)
+        self.subscription = None
 
     def in_zone(self):
         if self.pose is None:
