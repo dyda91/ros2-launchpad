@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import {
+  expectDone,
+  expectTask,
+  goNext,
+  insertAndRun,
   robotPose,
   runCommand,
   startSession,
@@ -100,4 +104,43 @@ test("visor: camadas, câmera, rastro e leitura ao vivo", async ({ page }) => {
     "data-prompt",
     "true"
   );
+});
+
+test("raios do LiDAR ligados por padrão e botão de resetar o robô", async ({ page }) => {
+  await startSession(page);
+  await expect(page.getByTestId("layer-rays")).toBeChecked();
+
+  await runCommand(page, twist(30, 0.3, 0));
+  await waitStopped(page);
+  expect((await robotPose(page)).x).toBeGreaterThan(0.5);
+
+  await page.getByTestId("reset-robot").click();
+  await expect
+    .poll(async () => {
+      const pose = await robotPose(page);
+      return Math.hypot(pose.x, pose.y);
+    }, { timeout: 15_000 })
+    .toBeLessThan(0.1);
+  await expect
+    .poll(async () => Math.abs((await robotPose(page)).yaw), { timeout: 5_000 })
+    .toBeLessThan(0.1);
+});
+
+test("campo de resposta do curso mantém o foco ao clicar", async ({ page }) => {
+  await startSession(page);
+  await expectTask(page, "terminal-pwd");
+  await insertAndRun(page, page.getByTestId("task-card"));
+  await expectDone(page);
+  await goNext(page);
+  await expectTask(page, "terminal-ls-ros");
+  await runCommand(page, "ls /opt/ros");
+  await expectDone(page);
+  await goNext(page);
+  await expectTask(page, "terminal-distro");
+
+  const input = page.getByTestId("answer-input");
+  await input.click();
+  await page.keyboard.type("jazzy", { delay: 40 });
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("jazzy");
 });

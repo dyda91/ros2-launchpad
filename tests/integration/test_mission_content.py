@@ -152,11 +152,11 @@ class MissionContentTest(unittest.TestCase):
         self.assertEqual(self.tasks["terminal-distro"]["accept"], ["jazzy"])
 
         monitor = (SIM / "launchpad_sim" / "mission_monitor.py").read_text()
-        self.assertIn('super().__init__("mission_monitor")', monitor)
+        self.assertIn('super().__init__("mission_monitor"', monitor)
         self.assertIn("mission_monitor", map(normalize_answer, self.tasks["nos-monitor"]["accept"]))
 
         watchdog = (SIM / "launchpad_sim" / "cmd_vel_watchdog.py").read_text()
-        self.assertIn('super().__init__("cmd_vel_watchdog")', watchdog)
+        self.assertIn('super().__init__("cmd_vel_watchdog"', watchdog)
 
         merge = (SIM / "launchpad_sim" / "odom_merge.py").read_text()
         self.assertIn('super().__init__("odom_merge")', merge)

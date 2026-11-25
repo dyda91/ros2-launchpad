@@ -271,6 +271,20 @@ async def touch_session(request: Request):
     return Response(status_code=204)
 
 
+@app.post("/api/session/reset-pose", status_code=204)
+async def reset_pose(request: Request):
+    cookie = request.cookies.get(settings.cookie_name)
+    if not cookie:
+        raise HTTPException(status_code=409, detail="session not found")
+    try:
+        done = await manager(request).reset_pose(cookie)
+    except Exception:
+        raise HTTPException(status_code=503, detail="reset failed")
+    if not done:
+        raise HTTPException(status_code=409, detail="session not ready")
+    return Response(status_code=204)
+
+
 @app.put("/api/session/progress", status_code=204)
 async def save_progress(request: Request):
     cookie = request.cookies.get(settings.cookie_name)

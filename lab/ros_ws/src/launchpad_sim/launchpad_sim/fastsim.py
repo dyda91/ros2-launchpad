@@ -10,6 +10,7 @@ from rclpy.parameter import Parameter
 from rclpy.time import Time
 from rosgraph_msgs.msg import Clock
 from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Empty
 
 from launchpad_sim.cmd_vel_watchdog import CmdVelWatchdog
 from launchpad_sim.fastsim_core import (
@@ -35,12 +36,12 @@ class FastSim(Node):
         if not map_file:
             raise ValueError("map_file parameter is required")
         self.world = FastWorld(load_map(map_file))
-        self.robot = FastRobot(
-            self.world,
+        self.spawn = (
             float(self.get_parameter("spawn_x").value),
             float(self.get_parameter("spawn_y").value),
             float(self.get_parameter("spawn_yaw").value),
         )
+        self.robot = FastRobot(self.world, *self.spawn)
         rate = float(self.get_parameter("update_rate_hz").value)
         self.ticks = 0
         self.watchdog = None
@@ -53,11 +54,19 @@ class FastSim(Node):
         self.odom_publisher = self.create_publisher(Odometry, "/odom", 10)
         self.scan_publisher = self.create_publisher(LaserScan, "/scan", 10)
         self.clock_publisher = self.create_publisher(Clock, "/clock", 10)
+        self.create_subscription(
+            Empty, "/launchpad/_reset_pose", self.on_reset, 1
+        )
         self.create_timer(1.0 / rate, self.on_tick)
         self.get_logger().info(
             f"fastsim at {rate:.0f} Hz with {len(self.world.boxes)} boxes "
             f"and {len(self.world.circles)} cylinders"
         )
+
+    def on_reset(self, message):
+        self.command_linear = 0.0
+        self.command_angular = 0.0
+        self.robot.reset(*self.spawn)
 
     def publish(self, message):
         self.command_linear = message.linear.x

@@ -1,6 +1,7 @@
 import asyncio
 import hmac
 import json
+import math
 import os
 import signal
 
@@ -100,6 +101,43 @@ class AgentApp:
                 return web.json_response({"error": str(exc)}, status=503)
         return web.json_response(self._map)
 
+    async def _load_map(self):
+        if self._map is None:
+            with open(self.settings.map_file, "r", encoding="utf-8") as handle:
+                self._map = json.load(handle)
+        return self._map
+
+    async def reset_pose(self, request):
+        if not self._authorized(request):
+            return web.json_response({"error": "unauthorized"}, status=403)
+        if not self.ros.ready():
+            return web.json_response({"error": "simulator not ready"}, status=503)
+        if os.environ.get("SIM_BACKEND", "gazebo") == "fast":
+            self.ros.publish_reset()
+            return web.json_response({"ok": True})
+        try:
+            data = await self._load_map()
+            spawn = data["spawn"]
+            half = float(spawn.get("yaw", 0.0)) / 2.0
+            pose = (
+                'name: "launchpad_robot" '
+                f'position: {{x: {spawn["x"]}, y: {spawn["y"]}, z: {spawn["z"]}}} '
+                f'orientation: {{z: {math.sin(half)}, w: {math.cos(half)}}}'
+            )
+            process = await asyncio.create_subprocess_exec(
+                "gz", "service", "-s", f'/world/{data["world"]}/set_pose',
+                "--reqtype", "gz.msgs.Pose", "--reptype", "gz.msgs.Boolean",
+                "--timeout", "3000", "--req", pose,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            code = await asyncio.wait_for(process.wait(), timeout=6)
+        except (OSError, KeyError, asyncio.TimeoutError):
+            return web.json_response({"error": "reset failed"}, status=503)
+        if code != 0:
+            return web.json_response({"error": "reset failed"}, status=503)
+        return web.json_response({"ok": True})
+
     async def health(self, request):
         return web.json_response({"ok": True})
 
@@ -191,6 +229,7 @@ def create_app(settings):
     app.router.add_get("/health", agent.health)
     app.router.add_get("/state", agent.state)
     app.router.add_get("/map", agent.map)
+    app.router.add_post("/reset-pose", agent.reset_pose)
     app.router.add_get("/terminal", agent.terminal)
     app.router.add_get("/telemetry", agent.telemetry)
     app.on_startup.append(agent.on_startup)

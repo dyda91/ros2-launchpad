@@ -273,6 +273,20 @@ class SessionManager:
             self._touch_locked(session)
             return self._lifecycle(session)
 
+    async def reset_pose(self, cookie_id):
+        async with self._lock:
+            session = self._sessions.get(cookie_id)
+            if (
+                session is None
+                or session.state != "ready"
+                or not session.uds_path
+            ):
+                return False
+            self._touch_locked(session)
+            uds_path, token = session.uds_path, session.agent_token
+        await self.agent.reset_pose(uds_path, token)
+        return True
+
     async def save_progress(self, cookie_id, progress):
         if not self._valid_progress(progress):
             return False

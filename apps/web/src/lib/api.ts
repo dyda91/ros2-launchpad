@@ -80,6 +80,18 @@ export async function touchSession(): Promise<void> {
   });
 }
 
+export async function resetRobotPose(): Promise<boolean> {
+  try {
+    const response = await fetch("/api/session/reset-pose", {
+      method: "POST",
+      credentials: "same-origin"
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function saveProgress(progress: MissionProgress): Promise<void> {
   await fetch("/api/session/progress", {
     method: "PUT",

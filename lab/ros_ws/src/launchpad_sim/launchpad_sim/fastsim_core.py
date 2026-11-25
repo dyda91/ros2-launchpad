@@ -161,6 +161,14 @@ class FastRobot:
         self.angular = 0.0
         self.blocked = False
 
+    def reset(self, x, y, yaw):
+        self.x = x
+        self.y = y
+        self.yaw = yaw
+        self.linear = 0.0
+        self.angular = 0.0
+        self.blocked = False
+
     @staticmethod
     def _approach(current, target, limit):
         if limit <= 0.0:

@@ -8,7 +8,7 @@ from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import String
+from std_msgs.msg import Empty, String
 
 from launchpad_agent.cdr import parse_odometry, parse_stamp
 
@@ -53,12 +53,18 @@ class RosBridge:
         self._node.create_subscription(
             LaserScan, "/scan", self._on_scan, 10, raw=True
         )
+        self._reset_publisher = self._node.create_publisher(
+            Empty, "/launchpad/_reset_pose", 1
+        )
         self._thread = threading.Thread(
             target=self._spin,
             name="launchpad-ros-bridge",
             daemon=True,
         )
         self._thread.start()
+
+    def publish_reset(self):
+        self._reset_publisher.publish(Empty())
 
     def _spin(self):
         try:

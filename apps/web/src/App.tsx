@@ -9,6 +9,7 @@ import {
   getMap,
   getMission,
   getSession,
+  resetRobotPose,
   restartSession,
   saveProgress,
   startSession,
@@ -89,6 +90,7 @@ export default function App() {
   const [follow, setFollow] = useState(false);
   const [resetToken, setResetToken] = useState(0);
   const [clearTrailToken, setClearTrailToken] = useState(0);
+  const [resettingRobot, setResettingRobot] = useState(false);
   const [terminalState, setTerminalState] = useState<TerminalState | null>(null);
   const [insertNotice, setInsertNotice] = useState("");
   const [lastCommand, setLastCommand] = useState<TerminalCommand | null>(null);
@@ -355,6 +357,21 @@ export default function App() {
     setInsertNotice("");
     terminalRef.current?.insert(command);
     terminalRef.current?.focus();
+  }
+
+  async function handleResetRobot() {
+    if (resettingRobot) {
+      return;
+    }
+    setResettingRobot(true);
+    const done = await resetRobotPose();
+    if (done) {
+      setClearTrailToken((value) => value + 1);
+      setNotice("");
+    } else {
+      setNotice("Não foi possível resetar o robô. Tente de novo.");
+    }
+    setResettingRobot(false);
   }
 
   function handleInterrupt() {
@@ -670,7 +687,15 @@ export default function App() {
       {session.state === "ready" ? (
         <main
           className="workspace mission-workspace"
-          onClick={() => terminalRef.current?.focus()}
+          onClick={(event) => {
+            if (
+              event.target instanceof HTMLElement &&
+              event.target.closest("input, textarea, select, a") !== null
+            ) {
+              return;
+            }
+            terminalRef.current?.focus();
+          }}
         >
           {mission !== null ? (
             <MissionPanel
@@ -771,6 +796,15 @@ export default function App() {
                   data-testid="clear-trail"
                 >
                   Limpar rastro
+                </button>
+                <button
+                  className="button button-ghost button-small"
+                  onClick={handleResetRobot}
+                  disabled={resettingRobot}
+                  data-testid="reset-robot"
+                  title="Leva o robô de volta ao ponto de partida"
+                >
+                  Resetar robô
                 </button>
                 <button
                   className={`button button-small ${showLidar ? "button-secondary" : "button-ghost"}`}

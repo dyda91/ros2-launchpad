@@ -121,6 +121,25 @@ class FastSimCoreTest(unittest.TestCase):
         drive(robot, 0.35, 0.0, 14.0)
         self.assertTrue(robot.blocked)
 
+    def test_reset_returns_to_spawn_and_stops(self):
+        robot = core.FastRobot(self.world)
+        drive(robot, 0.3, 0.0, 2.0)
+        self.assertGreater(robot.x, 0.3)
+        robot.reset(0.0, 0.0, 0.0)
+        self.assertEqual((robot.x, robot.y, robot.yaw), (0.0, 0.0, 0.0))
+        self.assertEqual((robot.linear, robot.angular), (0.0, 0.0))
+
+    def test_east_structures_do_not_overlap_each_other(self):
+        for item in self.world.boxes:
+            self.assertFalse(
+                self.world.collides(0.0, 0.0, 0.0), "spawn must stay free"
+            )
+
+    def test_wide_floor_has_wall_at_east_end(self):
+        robot = core.FastRobot(self.world, 14.0, 2.0, 0.0)
+        ranges = self.world.scan(robot.x, robot.y, robot.yaw)
+        self.assertLess(float(min(ranges[170:190])), 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

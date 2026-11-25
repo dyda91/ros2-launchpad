@@ -22,7 +22,7 @@ export const defaultLayers: Layers = {
   trail: true,
   velocity: true,
   markings: true,
-  rays: false,
+  rays: true,
   sector: true
 };
 

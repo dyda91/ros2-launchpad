@@ -30,6 +30,17 @@ class AgentClient:
                     )
                 return await response.json()
 
+    async def reset_pose(self, uds_path, token):
+        async with self._session(uds_path) as client:
+            async with client.post(
+                "http://localhost/reset-pose",
+                headers={"X-Agent-Token": token},
+            ) as response:
+                if response.status != 200:
+                    raise RuntimeError(
+                        f"agent reset returned {response.status}"
+                    )
+
     async def connect(self, uds_path, token, path):
         client = self._session(uds_path)
         websocket = await client.ws_connect(
