@@ -25,7 +25,7 @@ PROFILE ?= idle
 SESSION_MEMORY ?= 2g
 SESSION_CPUS ?= 2
 
-.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-terminal test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 e2e-4a e2e-viewer viewer-capture test-robot test-fastsim test-agent-cdr load-test stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
+.PHONY: help build build-app lab-up lab-down lab-shell lab-logs world test-world test-terminal test-mission test-api test-session-capacity test-pilot stage1 up down session-down sessions-clean e2e e2e-image e2e-2a e2e-2b e2e-3 e2e-4a e2e-viewer viewer-capture test-robot test-fastsim test-agent-cdr test-complete load-test stage2a stage2b stage3 stage2a-clean stage2b-clean measure-2b pilot-up pilot-down pilot-admin pilot-verify pilot-inspect pilot-acceptance pilot-e2e pilot-host-e2e staging-up staging-down staging-admin staging-expiry clean
 
 help:
 	@printf '%s\n' \
@@ -45,6 +45,7 @@ help:
 		'e2e-4a      executa a regressão de condução repetida da 4A' \
 		'e2e-viewer  executa o Playwright do visor (camadas, câmera e rastro)' \
 		'viewer-capture gera capturas e o tempo de frame em docs/visor' \
+		'test-complete confere o autocompletar rápido do ros2' \
 		'test-robot  confere as dimensões do robô no visor contra o URDF' \
 		'test-mission valida o conteúdo da missão' \
 		'test-api    testa falha/retry do restart da sessão' \
@@ -162,6 +163,10 @@ test-fastsim: build
 		-v "$(CURDIR)/tests:/tests:ro" -v "$(CURDIR)/content:/content:ro" \
 		$(LAB_IMAGE) -lc \
 		'source /opt/ros/jazzy/setup.bash; LAUNCHPAD_ROOT=/ python3 /tests/integration/test_fastsim_core.py -v'
+
+test-complete: build
+	docker run --rm --entrypoint bash -v "$(CURDIR):/repo:ro" $(LAB_IMAGE) -lc \
+		'source /opt/ros/jazzy/setup.bash; python3 /repo/tests/integration/test_ros2_complete.py -v'
 
 test-agent-cdr: build
 	docker run --rm --entrypoint bash -v "$(CURDIR):/repo:ro" $(LAB_IMAGE) -lc \

@@ -88,6 +88,7 @@ make viewer-capture        # capturas e tempo de frame em docs/visor
 make test-robot            # dimensões do robô no visor x URDF
 make test-fastsim          # núcleo do simulador leve (cinemática, colisão, LiDAR)
 make test-agent-cdr        # leitura bruta de /odom e /scan no agente
+make test-complete         # autocompletar rápido do ros2 (Tab sem subir o Python)
 make load-test SESSIONS=8 DURATION=90 PROFILE=active   # carga com sessões simuladas
 make up SIM_BACKEND=fast MAX_SESSIONS=12 SESSION_MEMORY=512m SESSION_CPUS=1
 make test-mission          # schema e conteúdo da missão
@@ -242,6 +243,13 @@ o que passou e o que permanece pendente.
   **Resetar robô** leva o robô ao spawn sem perder o progresso
   (`POST /api/session/reset-pose`; `fastsim` recebe `/launchpad/_reset_pose`, o
   Gazebo usa `gz service set_pose`).
+- O Tab do `ros2` usa um completer em bash (`lab/image/launchpad.bashrc`) em vez
+  do `argcomplete` (0,5–1,3 s por Tab). A árvore de comandos, verbos, opções e
+  tipos de argumento é gerada no build a partir da CLI real
+  (`lab/image/gen_ros2_complete.py`); tópicos, nós, serviços e ações vêm de
+  `/tmp/launchpad_graph`, que o agente atualiza a cada 2 s. Contextos que ele
+  não cobre (nomes de parâmetros, arquivos de launch, protótipo YAML) caem no
+  completer original.
 - As dimensões do robô no visor ficam em `apps/web/src/robot.ts` e são
   conferidas contra o URDF por `make test-robot`.
 - O terminal tem foco explícito ao inserir, botão **Focar terminal**,

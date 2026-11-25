@@ -37,6 +37,7 @@ RUN mkdir -p /home/ubuntu/.ros \
 WORKDIR /ros_ws
 COPY lab/image/agent /opt/launchpad_agent
 COPY lab/image/launchpad.bashrc /etc/launchpad.bashrc
+COPY lab/image/gen_ros2_complete.py /opt/launchpad/gen_ros2_complete.py
 COPY lab/ros_ws/src /ros_ws/src
 COPY content/world/armazem.yaml /ros_ws/src/launchpad_sim/config/armazem.yaml
 
@@ -47,6 +48,11 @@ RUN source /opt/ros/jazzy/setup.bash \
         --map-out /ros_ws/src/launchpad_sim/config/map.json \
     && colcon build --base-paths /ros_ws/src --event-handlers console_direct+ \
     && chown -R 1000:1000 /ros_ws
+
+RUN source /opt/ros/jazzy/setup.bash \
+    && source /ros_ws/install/setup.bash \
+    && mkdir -p /usr/share/launchpad \
+    && python3 /opt/launchpad/gen_ros2_complete.py --out /usr/share/launchpad/ros2_complete_data.bash
 
 RUN printf '%s\n' \
     'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' \

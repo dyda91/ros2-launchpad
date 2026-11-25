@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import threading
 from collections import deque
 
@@ -53,6 +54,11 @@ class RosBridge:
         self._node.create_subscription(
             LaserScan, "/scan", self._on_scan, 10, raw=True
         )
+        self._graph_path = os.environ.get(
+            "LAUNCHPAD_GRAPH_FILE", "/tmp/launchpad_graph"
+        )
+        self._graph_text = ""
+        self._node.create_timer(2.0, self._write_graph)
         self._reset_publisher = self._node.create_publisher(
             Empty, "/launchpad/_reset_pose", 1
         )
@@ -62,6 +68,35 @@ class RosBridge:
             daemon=True,
         )
         self._thread.start()
+
+    @staticmethod
+    def _visible(name):
+        return not any(part.startswith("_") for part in name.split("/"))
+
+    def _write_graph(self):
+        try:
+            lines = []
+            for name, types in sorted(self._node.get_topic_names_and_types()):
+                if self._visible(name):
+                    lines.append(f"T {name} {types[0] if types else ''}")
+            for name, namespace in sorted(
+                self._node.get_node_names_and_namespaces()
+            ):
+                if not name.startswith("_"):
+                    lines.append(f"N {namespace.rstrip('/')}/{name}")
+            for name, types in sorted(self._node.get_service_names_and_types()):
+                if self._visible(name) or name.endswith("/_action/send_goal"):
+                    lines.append(f"S {name} {types[0] if types else ''}")
+            text = "\n".join(lines) + "\n"
+            if text == self._graph_text:
+                return
+            temporary = f"{self._graph_path}.tmp"
+            with open(temporary, "w", encoding="utf-8") as handle:
+                handle.write(text)
+            os.replace(temporary, self._graph_path)
+            self._graph_text = text
+        except Exception:
+            return
 
     def publish_reset(self):
         self._reset_publisher.publish(Empty())

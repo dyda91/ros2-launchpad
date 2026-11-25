@@ -144,3 +144,29 @@ test("campo de resposta do curso mantém o foco ao clicar", async ({ page }) => 
   await expect(input).toBeFocused();
   await expect(input).toHaveValue("jazzy");
 });
+
+test("Tab completa comandos ros2 e nomes do grafo sem demora", async ({ page }) => {
+  await startSession(page);
+  await page.getByTestId("focus-terminal").click();
+  const terminal = page.locator(".xterm-rows");
+  await expect(page.getByTestId("terminal-state")).toHaveAttribute(
+    "data-prompt",
+    "true"
+  );
+
+  await page.keyboard.type("ros2 topic echo /od");
+  const started = Date.now();
+  await page.keyboard.press("Tab");
+  await expect(terminal).toContainText("ros2 topic echo /odom", { timeout: 3_000 });
+  expect(Date.now() - started).toBeLessThan(1_500);
+
+  await page.keyboard.press("Control+u");
+  await page.keyboard.type("ros2 topic pub /cmd_vel geometry_msgs/msg/Tw");
+  await page.keyboard.press("Tab");
+  await expect(terminal).toContainText("geometry_msgs/msg/Twist", { timeout: 3_000 });
+  await page.keyboard.press("Control+u");
+
+  await page.keyboard.type("ros2 node info /fast");
+  await page.keyboard.press("Tab");
+  await expect(terminal).toContainText("ros2 node info /fastsim", { timeout: 3_000 });
+});
