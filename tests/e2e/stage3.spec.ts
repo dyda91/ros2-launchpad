@@ -93,8 +93,8 @@ async function solveTask(page: Page, task: CourseTask) {
     case "entrega-zona": {
       const current = await robotPose(page);
       await driveTo(page, 2.2, current.y);
-      await driveTo(page, 2.2, 3.6);
-      await driveTo(page, 5.8, 3.6);
+      await driveTo(page, 2.2, 1.85);
+      await driveTo(page, 13.2, 1.85);
       return;
     }
     default:

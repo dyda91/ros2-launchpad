@@ -81,9 +81,9 @@ test("capturas do visor e tempo de frame", async ({ page }) => {
     "true",
     { timeout: 30_000 }
   );
-  await driveTo(page, 3.2, 0.0);
-  await driveTo(page, 3.2, 3.6);
-  await driveTo(page, 5.8, 3.6);
+  await driveTo(page, 2.2, 0.0);
+  await driveTo(page, 2.2, 1.85);
+  await driveTo(page, 13.2, 1.85);
   await expect(page.getByTestId("mission-status")).toHaveAttribute(
     "data-in-zone",
     "true",

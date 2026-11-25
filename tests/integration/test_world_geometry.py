@@ -61,13 +61,13 @@ class WorldGeometryTest(unittest.TestCase):
         self.assertAlmostEqual(data["spawn"]["y"], 0.0)
         self.assertAlmostEqual(data["spawn"]["z"], 0.15)
         self.assertEqual(data["zone"]["id"], "coleta")
-        self.assertEqual(data["zone"]["bounds"]["min"], [5.1, 2.5])
-        self.assertEqual(data["zone"]["bounds"]["max"], [6.5, 3.9])
-        self.assertEqual(len(data["obstacles"]), 16)
+        self.assertEqual(data["zone"]["bounds"]["min"], [12.5, 1.15])
+        self.assertEqual(data["zone"]["bounds"]["max"], [13.9, 2.55])
+        self.assertEqual(len(data["obstacles"]), 17)
         kinds = {item["id"]: item["kind"] for item in data["obstacles"]}
-        self.assertEqual(kinds["caixa_a"], "crate")
-        self.assertEqual(kinds["coluna_b"], "pillar")
-        self.assertEqual(kinds["rack_norte"], "rack")
+        self.assertEqual(kinds["caixa_c"], "crate")
+        self.assertEqual(kinds["coluna_doca"], "pillar")
+        self.assertEqual(kinds["rack_norte_a"], "rack")
 
     def test_zone_is_inside_warehouse(self):
         data = load_map()
@@ -83,9 +83,11 @@ class WorldGeometryTest(unittest.TestCase):
         spawn = (data["spawn"]["x"], data["spawn"]["y"])
         route = [
             spawn,
-            (3.2, 0.0),
-            (3.2, 3.6),
-            (5.8, 3.6),
+            (1.0, 0.0),
+            (1.0, 3.3),
+            (2.2, 3.3),
+            (2.2, 1.85),
+            (13.2, 1.85),
             tuple(data["zone"]["center"]),
         ]
         clearance = 0.28
@@ -148,8 +150,8 @@ class WorldGeometryTest(unittest.TestCase):
             self.assertIn("wall_south", model_names)
             self.assertIn("wall_north", model_names)
             self.assertIn("zona_coleta", model_names)
-            self.assertIn("caixa_a", model_names)
-            self.assertIn("coluna_b", model_names)
+            self.assertIn("rack_sul_a", model_names)
+            self.assertIn("coluna_doca", model_names)
             self.assertIn("caixa_c", model_names)
             self.assertFalse(world.findall(".//include"))
             self.assertFalse(world.findall(".//uri"))

@@ -432,8 +432,8 @@ steps:
         feedback: "Isso. Você parou guiado pelo sensor, não pelo tempo."
   - id: entrega
     title: "Módulo 9 — Entrega no armazém"
-    goal: "Levar o robô até a zona de coleta, contornando a coluna, e parar dentro dela."
-    concept: "A entrega reúne tudo: planejar uma rota, girar, avançar, medir em /odom e no LiDAR e corrigir. A zona de coleta vai de x 5,1 a 6,5 e de y 2,5 a 3,9. A coluna B fica em (4,2; 2,8), com raio 0,45 m: o topo dela está em y ≈ 3,25. O mission_monitor confirma a entrega quando o robô fica 2 s parado dentro da zona."
+    goal: "Levar o robô até a zona de coleta, no lado oposto do armazém, pelo corredor entre as estantes, e parar dentro dela."
+    concept: "A entrega reúne tudo: planejar uma rota, girar, avançar, medir em /odom e no LiDAR e corrigir. A zona de coleta fica na doca, no extremo leste: vai de x 12,5 a 13,9 e de y 1,15 a 2,55. As estantes começam em x ≈ 2,6 e o corredor entre as duas primeiras fileiras tem o centro em y ≈ 1,85, com cerca de 1,3 m de largura. O mission_monitor confirma a entrega quando o robô fica 2 s parado dentro da zona."
     why: "Um objetivo real é verificado pelo sistema, não pelo aluno: só conta quando o monitor diz delivered."
     example:
       - "ros2 topic echo --once /launchpad/mission_status   # estado da entrega"
@@ -447,21 +447,25 @@ steps:
         prompt: "Conduza o robô até a zona verde e pare dentro dela por 2 s. Siga a estratégia, medindo depois de cada comando."
         strategy:
           - "Gire à direita até o yaw ficar perto de 0° (leste)."
-          - "Avance até x ≈ 2,2: assim você sai de baixo da caixa C."
-          - "Gire à esquerda até ~90° e avance até y ≈ 3,6."
-          - "Gire à direita até ~0°: em y ≈ 3,6 você passa acima da coluna B com folga."
-          - "Avance até x ≈ 5,8 e pare. Confira o painel até aparecer a confirmação."
+          - "Avance até x ≈ 2,2: assim você sai de baixo da caixa C, antes das estantes."
+          - "Gire à direita até ~-90° (para o sul) e avance até y ≈ 1,85, o centro do corredor entre as estantes."
+          - "Gire à esquerda até ~0° e confira que o LiDAR mostra estante dos dois lados."
+          - "Avance pelo corredor até x ≈ 13,2 e pare. Confira o painel até aparecer a confirmação."
         hints:
           - "Use giros de z: -0.8 com --times 15 e corrija com z: 0.2 e --times 2."
-          - "De x ≈ 2,2 até x ≈ 5,8 são ~3,6 m: a 0,3 m/s, --times perto de 115. Divida em duas partes se preferir."
+          - "De x ≈ 2,2 até x ≈ 13,2 são ~11 m: a 0,3 m/s, três comandos com --times 120 chegam perto. Confira o yaw entre eles."
+          - "Se o robô se aproximar de uma estante, pare, gire de volta e corrija com z: 0.2 e --times 2."
           - "Se estiver na zona, mas ainda se movendo, espere: o watchdog para o robô em 0,5 s."
         solution:
           - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: -0.8}}\""
           - "ros2 topic pub --rate 10 --times 2 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.2}}\""
           - "ros2 topic pub --rate 10 --times 30 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
+          - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: -0.8}}\""
+          - "ros2 topic pub --rate 10 --times 45 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
           - "ros2 topic pub --rate 10 --times 15 /cmd_vel geometry_msgs/msg/Twist \"{angular: {z: 0.8}}\""
-          - "ros2 topic pub --rate 10 --times 5 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.2}}\""
-          - "ros2 topic pub --rate 10 --times 60 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
+          - "ros2 topic pub --rate 10 --times 120 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
+          - "ros2 topic pub --rate 10 --times 120 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
+          - "ros2 topic pub --rate 10 --times 120 /cmd_vel geometry_msgs/msg/Twist \"{linear: {x: 0.3}}\""
         solutionNote: "Os giros e distâncias variam a cada execução: meça o yaw e a posição depois de cada comando e corrija."
         feedback: "Entrega concluída. Você integrou terminal, ROS 2, odometria, condução em malha fechada e LiDAR."
 success:

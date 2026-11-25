@@ -231,14 +231,17 @@ o que passou e o que permanece pendente.
   paredes, pallets, racks e pilar desenhados a partir do `map.json`, robô fiel
   ao URDF, TF, rastro, vetor de velocidade e LiDAR por distância. Não há
   visão em primeira pessoa nem câmera Gazebo.
-- O armazém tem três racks reais (`rack_norte`, `rack_leste`, `rack_sul`) em
+- O armazém tem três racks reais (`rack_<fileira>_<segmento>`) em
   `armazem.yaml`, com `kind: rack`; só o piso recebe decoração (faixas, zebrado,
   juntas), nada pintado parece obstáculo se não existir no Gazebo.
-- O armazém tem 15 m × 6 m: a metade oeste (zona, caixas A e C, coluna B e os
-  três racks originais) é a que o curso usa; a leste há três estantes em
-  corredores, paletes, volumes de doca e duas colunas. O botão **Resetar robô**
-  leva o robô ao spawn sem perder o progresso (`POST /api/session/reset-pose`;
-  `fastsim` recebe `/launchpad/_reset_pose`, o Gazebo usa `gz service set_pose`).
+- O armazém tem 15 m × 6 m, com o desenho de um armazém real: área de
+  recebimento no oeste (spawn, caixa C e palete), três fileiras de estantes ao
+  longo de x em segmentos de 2,8 m com corredores de 1,2–1,4 m e cruzamentos de
+  1,2 m, e a doca no extremo leste, onde fica a zona de coleta (x 12,5–13,9,
+  y 1,15–2,55). A rota da entrega segue o corredor do meio (y ≈ 1,85). O botão
+  **Resetar robô** leva o robô ao spawn sem perder o progresso
+  (`POST /api/session/reset-pose`; `fastsim` recebe `/launchpad/_reset_pose`, o
+  Gazebo usa `gz service set_pose`).
 - As dimensões do robô no visor ficam em `apps/web/src/robot.ts` e são
   conferidas contra o URDF por `make test-robot`.
 - O terminal tem foco explícito ao inserir, botão **Focar terminal**,

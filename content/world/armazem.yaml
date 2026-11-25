@@ -18,80 +18,88 @@ spawn:
 
 zone:
   id: coleta
-  center: [5.8, 3.2]
+  center: [13.2, 1.85]
   size: [1.4, 1.4]
 
 obstacles:
-  - id: caixa_a
-    type: box
-    center: [2.4, 0.9]
-    size: [0.8, 0.8, 1.2]
-  - id: coluna_b
-    type: cylinder
-    center: [4.2, 2.8]
-    radius: 0.45
-    height: 1.2
   - id: caixa_c
     type: box
     center: [1.0, 4.2]
     size: [1.2, 0.6, 1.0]
-  - id: rack_norte
+  - id: palete_recebimento
+    type: box
+    center: [-0.1, 4.75]
+    size: [0.8, 1.0, 1.0]
+  - id: rack_sul_a
     type: box
     kind: rack
-    center: [4.7, 5.1]
-    size: [3.4, 0.5, 1.4]
-  - id: rack_leste
+    center: [4.0, 0.95]
+    size: [2.8, 0.5, 1.4]
+  - id: rack_sul_b
     type: box
     kind: rack
-    center: [7.0, 1.2]
-    size: [0.5, 2.4, 1.4]
-  - id: rack_sul
+    center: [8.0, 0.95]
+    size: [2.8, 0.5, 1.4]
+  - id: rack_sul_c
     type: box
     kind: rack
-    center: [5.15, -0.2]
-    size: [2.5, 0.5, 1.4]
-  - id: estante_1
+    center: [11.3, 0.95]
+    size: [1.4, 0.5, 1.4]
+  - id: rack_meio_s_a
     type: box
     kind: rack
-    center: [8.8, 2.0]
-    size: [0.5, 3.4, 1.4]
-  - id: estante_2
+    center: [4.0, 2.75]
+    size: [2.8, 0.5, 1.4]
+  - id: rack_meio_s_b
     type: box
     kind: rack
-    center: [10.4, 2.0]
-    size: [0.5, 3.4, 1.4]
-  - id: estante_3
+    center: [8.0, 2.75]
+    size: [2.8, 0.5, 1.4]
+  - id: rack_meio_s_c
     type: box
     kind: rack
-    center: [12.0, 2.0]
-    size: [0.5, 3.4, 1.4]
-  - id: palete_n1
+    center: [11.3, 2.75]
+    size: [1.4, 0.5, 1.4]
+  - id: rack_meio_n_a
     type: box
-    center: [9.5, 4.9]
-    size: [1.2, 0.8, 1.1]
-  - id: palete_n2
+    kind: rack
+    center: [4.0, 3.25]
+    size: [2.8, 0.5, 1.4]
+  - id: rack_meio_n_b
     type: box
-    center: [11.0, 4.9]
-    size: [1.2, 0.8, 1.1]
-  - id: doca_1
+    kind: rack
+    center: [8.0, 3.25]
+    size: [2.8, 0.5, 1.4]
+  - id: rack_meio_n_c
     type: box
-    center: [13.7, 0.9]
-    size: [0.8, 1.0, 0.9]
-  - id: doca_2
+    kind: rack
+    center: [11.3, 3.25]
+    size: [1.4, 0.5, 1.4]
+  - id: rack_norte_a
     type: box
-    center: [13.7, 2.4]
-    size: [0.8, 1.0, 0.9]
-  - id: doca_3
+    kind: rack
+    center: [4.0, 5.15]
+    size: [2.8, 0.5, 1.4]
+  - id: rack_norte_b
     type: box
-    center: [13.7, 4.4]
-    size: [0.8, 1.2, 1.0]
-  - id: coluna_c
+    kind: rack
+    center: [8.0, 5.15]
+    size: [2.8, 0.5, 1.4]
+  - id: rack_norte_c
+    type: box
+    kind: rack
+    center: [11.3, 5.15]
+    size: [1.4, 0.5, 1.4]
+  - id: palete_doca_1
+    type: box
+    center: [13.6, 0.55]
+    size: [1.4, 0.9, 1.0]
+  - id: palete_doca_2
+    type: box
+    center: [13.6, 4.2]
+    size: [1.0, 1.2, 0.9]
+  - id: coluna_doca
     type: cylinder
-    center: [7.9, 4.2]
-    radius: 0.25
-    height: 1.5
-  - id: coluna_d
-    type: cylinder
-    center: [12.9, 3.6]
+    center: [12.5, 3.4]
     radius: 0.25
     height: 1.5

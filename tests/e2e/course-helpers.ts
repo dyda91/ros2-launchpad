@@ -174,7 +174,7 @@ export async function rotateTo(page: Page, target: number, tolerance = 0.07) {
 }
 
 export async function driveTo(page: Page, x: number, y: number, tolerance = 0.1) {
-  for (let attempt = 0; attempt < 16; attempt += 1) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
     const current = await robotPose(page);
     const dx = x - current.x;
     const dy = y - current.y;

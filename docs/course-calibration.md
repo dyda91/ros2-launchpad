@@ -66,3 +66,12 @@ conduz em malha fechada.
   1,6; a dica orienta mirar no meio da faixa B.
 - Entrega: o corredor acima da coluna B exige y ≥ ~3,5 (topo da coluna em
   3,25 mais a meia largura de 0,21 m); a estratégia usa y ≈ 3,6.
+
+## Mapa v4 (armazém largo)
+
+O armazém passou a 15 m × 6 m, com estantes em corredores e a zona de coleta
+no extremo leste (x 12,5–13,9; y 1,15–2,55). As faixas A e B e a caixa C, que
+sustentam os desafios de pose e LiDAR, continuam no oeste, sem mudança. A
+entrega agora segue: leste até x ≈ 2,2, sul até y ≈ 1,85 (centro do corredor
+entre as duas primeiras fileiras) e leste por ~11 m até a zona. O Playwright
+conduz em malha fechada (`driveTo`) e passou no `fastsim`.
